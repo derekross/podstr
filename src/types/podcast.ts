@@ -10,6 +10,8 @@ export interface PodcastEpisode {
   content?: string;
   audioUrl: string;
   audioType?: string;
+  videoUrl?: string;
+  videoType?: string;
   imageUrl?: string;
   duration?: number; // in seconds
   episodeNumber?: number;
@@ -17,7 +19,9 @@ export interface PodcastEpisode {
   publishDate: Date;
   explicit?: boolean;
   tags: string[];
-  transcript?: string;
+  transcriptUrl?: string;
+  transcriptType?: string;
+  chaptersUrl?: string;
   chapters?: PodcastChapter[];
   guests?: PodcastGuest[];
   externalRefs?: ExternalReference[];
@@ -74,14 +78,21 @@ export interface EpisodeFormData {
   audioFile?: File;
   audioUrl?: string;
   audioType?: string;
+  videoFile?: File;
+  videoUrl?: string;
+  videoType?: string;
   imageFile?: File;
   imageUrl?: string;
+  transcriptFile?: File;
+  transcriptUrl?: string;
+  transcriptType?: string;
+  chaptersFile?: File;
+  chaptersUrl?: string;
   duration?: number;
   episodeNumber?: number;
   seasonNumber?: number;
   explicit?: boolean;
   tags: string[];
-  transcript?: string;
   externalRefs?: ExternalReference[];
 }
 
@@ -134,6 +145,11 @@ export interface RSSItem {
   author: string;
   category?: string[];
   enclosure: {
+    url: string;
+    length: number;
+    type: string;
+  };
+  videoEnclosure?: {
     url: string;
     length: number;
     type: string;

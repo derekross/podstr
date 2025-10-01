@@ -35,7 +35,11 @@ const episodeEditSchema = z.object({
   description: z.string().max(1000, 'Description too long').optional(),
   content: z.string().optional(),
   audioUrl: z.string().url().optional().or(z.literal('')),
+  videoUrl: z.string().url().optional().or(z.literal('')),
   imageUrl: z.string().url().optional().or(z.literal('')),
+  transcriptUrl: z.string().url().optional().or(z.literal('')),
+  transcriptType: z.string().optional().or(z.literal('')),
+  chaptersUrl: z.string().url().optional().or(z.literal('')),
   duration: z.number().positive().optional(),
   episodeNumber: z.number().positive().optional(),
   seasonNumber: z.number().positive().optional(),
@@ -62,7 +66,10 @@ export function EpisodeEditDialog({
   const { mutateAsync: updateEpisode, isPending } = useUpdateEpisode();
 
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
+  const [chaptersFile, setChaptersFile] = useState<File | null>(null);
   const [currentTag, setCurrentTag] = useState('');
   const [isDetectingDuration, setIsDetectingDuration] = useState(false);
 
@@ -73,7 +80,11 @@ export function EpisodeEditDialog({
       description: episode.description || '',
       content: episode.content || '',
       audioUrl: episode.audioUrl || '',
+      videoUrl: episode.videoUrl || '',
       imageUrl: episode.imageUrl || '',
+      transcriptUrl: episode.transcriptUrl || '',
+      transcriptType: episode.transcriptType || 'text/plain',
+      chaptersUrl: episode.chaptersUrl || '',
       duration: episode.duration,
       episodeNumber: episode.episodeNumber,
       seasonNumber: episode.seasonNumber,
@@ -92,7 +103,11 @@ export function EpisodeEditDialog({
       description: episode.description || '',
       content: episode.content || '',
       audioUrl: episode.audioUrl || '',
+      videoUrl: episode.videoUrl || '',
       imageUrl: episode.imageUrl || '',
+      transcriptUrl: episode.transcriptUrl || '',
+      transcriptType: episode.transcriptType || 'text/plain',
+      chaptersUrl: episode.chaptersUrl || '',
       duration: episode.duration,
       episodeNumber: episode.episodeNumber,
       seasonNumber: episode.seasonNumber,
@@ -100,7 +115,10 @@ export function EpisodeEditDialog({
       tags: episode.tags || [],
     });
     setAudioFile(null);
+    setVideoFile(null);
     setImageFile(null);
+    setTranscriptFile(null);
+    setChaptersFile(null);
     setCurrentTag('');
     setIsDetectingDuration(false);
   }, [episode, reset]);
@@ -153,6 +171,39 @@ export function EpisodeEditDialog({
     }
   };
 
+  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('video/')) {
+        toast({
+          title: 'Invalid file type',
+          description: 'Please select a video file.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validate file size (500MB limit)
+      if (file.size > 500 * 1024 * 1024) {
+        toast({
+          title: 'File too large',
+          description: 'Video file must be less than 500MB.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setVideoFile(file);
+      setValue('videoUrl', '');
+
+      toast({
+        title: 'Video file selected',
+        description: `${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`,
+      });
+    }
+  };
+
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -186,6 +237,72 @@ export function EpisodeEditDialog({
     }
   };
 
+  const handleTranscriptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: 'File too large',
+          description: 'Transcript file must be less than 5MB.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setTranscriptFile(file);
+      setValue('transcriptUrl', '');
+
+      // Auto-detect transcript type
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      let transcriptType = 'text/plain';
+      if (extension === 'html') transcriptType = 'text/html';
+      else if (extension === 'vtt') transcriptType = 'text/vtt';
+      else if (extension === 'json') transcriptType = 'application/json';
+      else if (extension === 'srt') transcriptType = 'application/x-subrip';
+
+      setValue('transcriptType', transcriptType);
+
+      toast({
+        title: 'Transcript file selected',
+        description: `${file.name} (${transcriptType})`,
+      });
+    }
+  };
+
+  const handleChaptersFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.includes('json') && !file.name.endsWith('.json')) {
+        toast({
+          title: 'Invalid file type',
+          description: 'Please select a JSON file for chapters.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validate file size (1MB limit)
+      if (file.size > 1024 * 1024) {
+        toast({
+          title: 'File too large',
+          description: 'Chapters file must be less than 1MB.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setChaptersFile(file);
+      setValue('chaptersUrl', '');
+
+      toast({
+        title: 'Chapters file selected',
+        description: `${file.name}`,
+      });
+    }
+  };
+
   const addTag = () => {
     if (currentTag.trim() && !tags.includes(currentTag.trim())) {
       setValue('tags', [...tags, currentTag.trim()]);
@@ -212,10 +329,17 @@ export function EpisodeEditDialog({
         ...data,
         description: data.description || '',
         audioFile: audioFile || undefined,
+        videoFile: videoFile || undefined,
         imageFile: imageFile || undefined,
+        transcriptFile: transcriptFile || undefined,
+        chaptersFile: chaptersFile || undefined,
         // Clean up empty URL strings
         audioUrl: data.audioUrl || undefined,
+        videoUrl: data.videoUrl || undefined,
         imageUrl: data.imageUrl || undefined,
+        transcriptUrl: data.transcriptUrl || undefined,
+        transcriptType: data.transcriptType || undefined,
+        chaptersUrl: data.chaptersUrl || undefined,
         // Keep existing external references
         externalRefs: episode.externalRefs,
       };
@@ -441,6 +565,218 @@ export function EpisodeEditDialog({
                     <div className="text-xs text-muted-foreground min-w-0">
                       <strong>Current artwork</strong>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Video Upload/URL */}
+              <div className="space-y-4">
+                <Label>Video File (Optional)</Label>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Upload Video</Label>
+                    <div className="mt-1">
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleVideoFileChange}
+                        className="hidden"
+                        id="video-upload-edit"
+                      />
+                      <label htmlFor="video-upload-edit">
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-gray-400 transition-colors">
+                          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-500">
+                            {videoFile ? (
+                              <span className="text-green-600 font-medium">
+                                ✓ {videoFile.name}
+                              </span>
+                            ) : (
+                              'Click to upload video'
+                            )}
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <FormField
+                      control={form.control}
+                      name="videoUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm text-muted-foreground">
+                            Or Video URL
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com/video.mp4"
+                              disabled={!!videoFile}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {!videoFile && episode.videoUrl && (
+                  <div className="text-xs text-muted-foreground bg-muted/50 p-2 sm:p-3 rounded">
+                    <strong>Current:</strong>
+                    <span className="break-all ml-1">{episode.videoUrl}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Transcript Upload/URL */}
+              <div className="space-y-4">
+                <Label>Transcript (Optional)</Label>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Upload Transcript</Label>
+                    <div className="mt-1">
+                      <input
+                        type="file"
+                        accept=".txt,.html,.vtt,.json,.srt"
+                        onChange={handleTranscriptFileChange}
+                        className="hidden"
+                        id="transcript-upload-edit"
+                      />
+                      <label htmlFor="transcript-upload-edit">
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-gray-400 transition-colors">
+                          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-500">
+                            {transcriptFile ? (
+                              <span className="text-green-600 font-medium">
+                                ✓ {transcriptFile.name}
+                              </span>
+                            ) : (
+                              'TXT, HTML, VTT, JSON, or SRT'
+                            )}
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <FormField
+                      control={form.control}
+                      name="transcriptUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm text-muted-foreground">
+                            Or Transcript URL
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com/transcript.txt"
+                              disabled={!!transcriptFile}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="transcriptType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm text-muted-foreground">Type</FormLabel>
+                          <FormControl>
+                            <select
+                              {...field}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={!!transcriptFile}
+                            >
+                              <option value="text/plain">Text (Plain)</option>
+                              <option value="text/html">HTML</option>
+                              <option value="text/vtt">WebVTT</option>
+                              <option value="application/json">JSON</option>
+                              <option value="application/x-subrip">SRT (SubRip)</option>
+                            </select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {!transcriptFile && episode.transcriptUrl && (
+                  <div className="text-xs text-muted-foreground bg-muted/50 p-2 sm:p-3 rounded">
+                    <strong>Current:</strong>
+                    <span className="break-all ml-1">{episode.transcriptUrl}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Chapters Upload/URL */}
+              <div className="space-y-4">
+                <Label>Chapters (Optional)</Label>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Upload Chapters</Label>
+                    <div className="mt-1">
+                      <input
+                        type="file"
+                        accept=".json,application/json"
+                        onChange={handleChaptersFileChange}
+                        className="hidden"
+                        id="chapters-upload-edit"
+                      />
+                      <label htmlFor="chapters-upload-edit">
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-gray-400 transition-colors">
+                          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-500">
+                            {chaptersFile ? (
+                              <span className="text-green-600 font-medium">
+                                ✓ {chaptersFile.name}
+                              </span>
+                            ) : (
+                              'JSON chapters file'
+                            )}
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <FormField
+                      control={form.control}
+                      name="chaptersUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm text-muted-foreground">
+                            Or Chapters URL
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com/chapters.json"
+                              disabled={!!chaptersFile}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {!chaptersFile && episode.chaptersUrl && (
+                  <div className="text-xs text-muted-foreground bg-muted/50 p-2 sm:p-3 rounded">
+                    <strong>Current:</strong>
+                    <span className="break-all ml-1">{episode.chaptersUrl}</span>
                   </div>
                 )}
               </div>

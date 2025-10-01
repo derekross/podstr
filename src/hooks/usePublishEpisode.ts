@@ -76,6 +76,42 @@ export function usePublishEpisode() {
         }
       }
 
+      // Upload video file if provided
+      let videoUrl = episodeData.videoUrl;
+      let videoType = episodeData.videoType;
+      if (episodeData.videoFile) {
+        try {
+          const videoTags = await uploadFile(episodeData.videoFile);
+          videoUrl = videoTags[0][1];
+          videoType = episodeData.videoFile.type;
+        } catch (error) {
+          throw new Error(`Failed to upload video file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Upload transcript file if provided
+      let transcriptUrl = episodeData.transcriptUrl;
+      const transcriptType = episodeData.transcriptType;
+      if (episodeData.transcriptFile) {
+        try {
+          const transcriptTags = await uploadFile(episodeData.transcriptFile);
+          transcriptUrl = transcriptTags[0][1];
+        } catch (error) {
+          throw new Error(`Failed to upload transcript file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Upload chapters file if provided
+      let chaptersUrl = episodeData.chaptersUrl;
+      if (episodeData.chaptersFile) {
+        try {
+          const chaptersTags = await uploadFile(episodeData.chaptersFile);
+          chaptersUrl = chaptersTags[0][1];
+        } catch (error) {
+          throw new Error(`Failed to upload chapters file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
       // Generate a unique identifier for this addressable episode
       const episodeIdentifier = `episode-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -95,6 +131,21 @@ export function usePublishEpisode() {
 
       if (imageUrl) {
         tags.push(['image', imageUrl]);
+      }
+
+      // Add video enclosure if provided
+      if (videoUrl) {
+        tags.push(['video', videoUrl, videoType || 'video/mp4']);
+      }
+
+      // Add transcript if provided (Podcasting 2.0)
+      if (transcriptUrl) {
+        tags.push(['transcript', transcriptUrl, transcriptType || 'text/plain']);
+      }
+
+      // Add chapters if provided (Podcasting 2.0)
+      if (chaptersUrl) {
+        tags.push(['chapters', chaptersUrl, 'application/json+chapters']);
       }
 
       // Add duration if provided
@@ -208,6 +259,42 @@ export function useUpdateEpisode() {
         }
       }
 
+      // Upload video file if provided
+      let videoUrl = episodeData.videoUrl;
+      let videoType = episodeData.videoType;
+      if (episodeData.videoFile) {
+        try {
+          const videoTags = await uploadFile(episodeData.videoFile);
+          videoUrl = videoTags[0][1];
+          videoType = episodeData.videoFile.type;
+        } catch (error) {
+          throw new Error(`Failed to upload video file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Upload transcript file if provided
+      let transcriptUrl = episodeData.transcriptUrl;
+      const transcriptType = episodeData.transcriptType;
+      if (episodeData.transcriptFile) {
+        try {
+          const transcriptTags = await uploadFile(episodeData.transcriptFile);
+          transcriptUrl = transcriptTags[0][1];
+        } catch (error) {
+          throw new Error(`Failed to upload transcript file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Upload chapters file if provided
+      let chaptersUrl = episodeData.chaptersUrl;
+      if (episodeData.chaptersFile) {
+        try {
+          const chaptersTags = await uploadFile(episodeData.chaptersFile);
+          chaptersUrl = chaptersTags[0][1];
+        } catch (error) {
+          throw new Error(`Failed to upload chapters file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
       // Use the provided episode identifier to preserve the same addressable event
       // This ensures comments and other references remain linked to the same episode
 
@@ -246,6 +333,21 @@ export function useUpdateEpisode() {
 
       if (imageUrl) {
         tags.push(['image', imageUrl]);
+      }
+
+      // Add video enclosure if provided
+      if (videoUrl) {
+        tags.push(['video', videoUrl, videoType || 'video/mp4']);
+      }
+
+      // Add transcript if provided (Podcasting 2.0)
+      if (transcriptUrl) {
+        tags.push(['transcript', transcriptUrl, transcriptType || 'text/plain']);
+      }
+
+      // Add chapters if provided (Podcasting 2.0)
+      if (chaptersUrl) {
+        tags.push(['chapters', chaptersUrl, 'application/json+chapters']);
       }
 
       // Add duration if provided

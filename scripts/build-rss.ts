@@ -226,9 +226,12 @@ function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[],
       <pubDate>${episode.publishDate.toUTCString()}</pubDate>
       <guid isPermaLink="false">${episode.authorPubkey}:${episode.identifier}</guid>
       <enclosure url="${escapeXml(episode.audioUrl)}" type="${episode.audioType}" length="0" />
+      ${episode.videoUrl ? `<enclosure url="${escapeXml(episode.videoUrl)}" type="${episode.videoType || 'video/mp4'}" length="0" />` : ''}
       <itunes:duration>${episode.duration ? formatDurationForRSS(episode.duration) : '00:00'}</itunes:duration>
       <itunes:explicit>${episode.explicit ? 'yes' : 'no'}</itunes:explicit>
       ${episode.imageUrl ? `<itunes:image href="${escapeXml(episode.imageUrl)}" />` : ''}
+      ${episode.transcriptUrl ? `<podcast:transcript url="${escapeXml(episode.transcriptUrl)}" type="${escapeXml(episode.transcriptType || 'text/plain')}" />` : ''}
+      ${episode.chaptersUrl ? `<podcast:chapters url="${escapeXml(episode.chaptersUrl)}" type="application/json+chapters" />` : ''}
       ${episode.content ? `<content:encoded><![CDATA[${episode.content}]]></content:encoded>` : ''}
     </item>`).join('')}
   </channel>
@@ -270,6 +273,20 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
   const audioUrl = audioTag?.[0] || '';
   const audioType = audioTag?.[1] || 'audio/mpeg';
 
+  // Extract video URL and type from video tag
+  const videoTag = tags.get('video');
+  const videoUrl = videoTag?.[0];
+  const videoType = videoTag?.[1] || 'video/mp4';
+
+  // Extract transcript URL and type from transcript tag
+  const transcriptTag = tags.get('transcript');
+  const transcriptUrl = transcriptTag?.[0];
+  const transcriptType = transcriptTag?.[1] || 'text/plain';
+
+  // Extract chapters URL from chapters tag
+  const chaptersTag = tags.get('chapters');
+  const chaptersUrl = chaptersTag?.[0];
+
   // Extract all 't' tags for topics
   const topicTags = event.tags
     .filter(([name]) => name === 't')
@@ -298,7 +315,12 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
     content: event.content || undefined,
     audioUrl,
     audioType,
+    videoUrl,
+    videoType,
     imageUrl,
+    transcriptUrl,
+    transcriptType,
+    chaptersUrl,
     duration,
     episodeNumber: undefined,
     seasonNumber: undefined,
