@@ -19,10 +19,9 @@ export interface PodcastEpisode {
   publishDate: Date;
   explicit?: boolean;
   tags: string[];
+  // Transcript and chapters as URL references
   transcriptUrl?: string;
-  transcriptType?: string;
   chaptersUrl?: string;
-  chapters?: PodcastChapter[];
   guests?: PodcastGuest[];
   externalRefs?: ExternalReference[];
 
@@ -159,11 +158,9 @@ export interface RSSItem {
   seasonNumber?: number;
   explicit?: boolean;
   image?: string;
-  transcript?: {
-    url: string;
-    type: string;
-  };
-  chapters?: string; // URL to chapters JSON
+  // Transcript and chapters as URL references
+  transcriptUrl?: string;
+  chaptersUrl?: string;
   funding?: Array<{
     url: string;
     message: string;

@@ -1,17 +1,18 @@
 import { useState, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { useSeoMeta } from '@unhead/react';
-import { Clock, Calendar, ArrowLeft, Headphones } from 'lucide-react';
+import { Clock, Calendar, ArrowLeft, Headphones, BookOpen, List, ExternalLink, ChevronDown, ChevronUp, Video } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { NoteContent } from '@/components/NoteContent';
 import { EpisodeActions } from './EpisodeActions';
 import { CommentsSection } from '@/components/comments/CommentsSection';
 import { Layout } from '@/components/Layout';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { usePodcastConfig } from '@/hooks/usePodcastConfig';
@@ -35,6 +36,9 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
   const { playEpisode } = useAudioPlayer();
   const podcastConfig = usePodcastConfig();
   const [showComments, setShowComments] = useState(true);
+  const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const [isChaptersOpen, setIsChaptersOpen] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
 
   // Query for the episode event
   const { data: episodeEvent, isLoading } = useQuery<NostrEvent | null>({
@@ -99,6 +103,11 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
     const audioUrl = audioTag?.[0] || '';
     const audioType = audioTag?.[1] || 'audio/mpeg';
 
+    // Extract video URL and type from video tag
+    const videoTag = tags.get('video');
+    const videoUrl = videoTag?.[0];
+    const videoType = videoTag?.[1];
+
     // Extract all 't' tags for topics
     const topicTags = episodeEvent.tags
       .filter(([name]) => name === 't')
@@ -121,6 +130,12 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
       publishDate = new Date(episodeEvent.created_at * 1000);
     }
 
+    // Extract transcript URL from tag
+    const transcriptUrl = tags.get('transcript')?.[0];
+
+    // Extract chapters URL from tag
+    const chaptersUrl = tags.get('chapters')?.[0];
+
     return {
       id: episodeEvent.id,
       eventId: episodeEvent.id,
@@ -131,6 +146,8 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
       identifier,
       audioUrl,
       audioType,
+      videoUrl,
+      videoType,
       imageUrl,
       publishDate,
       createdAt: new Date(episodeEvent.created_at * 1000),
@@ -139,11 +156,62 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
       duration,
       explicit: false, // Can be extended later if needed
       tags: topicTags,
+      transcriptUrl,
+      chaptersUrl,
       zapCount: 0,
       commentCount: 0,
       repostCount: 0
     };
   }, [episodeEvent]);
+
+  // Fetch transcript content if URL is available
+  const { data: transcriptContent, isLoading: isLoadingTranscript } = useQuery<string | null>({
+    queryKey: ['transcript', episode?.transcriptUrl],
+    queryFn: async () => {
+      if (!episode?.transcriptUrl) return null;
+
+      try {
+        const response = await fetch(episode.transcriptUrl);
+        if (!response.ok) throw new Error('Failed to fetch transcript');
+        return await response.text();
+      } catch (error) {
+        console.error('Error fetching transcript:', error);
+        return null;
+      }
+    },
+    enabled: !!episode?.transcriptUrl,
+    staleTime: 300000, // 5 minutes
+  });
+
+  // Fetch chapters content if URL is available
+  const { data: chaptersContent, isLoading: isLoadingChapters } = useQuery<Array<{ startTime: number; title: string; img?: string; url?: string }> | null>({
+    queryKey: ['chapters', episode?.chaptersUrl],
+    queryFn: async () => {
+      if (!episode?.chaptersUrl) return null;
+
+      try {
+        const response = await fetch(episode.chaptersUrl);
+        if (!response.ok) throw new Error('Failed to fetch chapters');
+        const data = await response.json();
+
+        // Handle both formats:
+        // 1. Podcasting 2.0 format: { "version": "1.2.0", "chapters": [...] }
+        // 2. Simple array format: [...]
+        if (Array.isArray(data)) {
+          return data;
+        } else if (data && typeof data === 'object' && Array.isArray(data.chapters)) {
+          return data.chapters;
+        }
+
+        return null;
+      } catch (error) {
+        console.error('Error fetching chapters:', error);
+        return null;
+      }
+    },
+    enabled: !!episode?.chaptersUrl,
+    staleTime: 300000, // 5 minutes
+  });
 
   // Update document title when episode loads
   useSeoMeta({
@@ -338,9 +406,20 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
                     Listen Now
                   </Button>
 
-                  {!episode.audioUrl && (
+                  {episode.videoUrl && (
+                    <Button
+                      onClick={() => setShowVideo(!showVideo)}
+                      variant="secondary"
+                      className="flex items-center gap-2"
+                    >
+                      <Video className="w-4 h-4" />
+                      {showVideo ? 'Hide Video' : 'Watch Video'}
+                    </Button>
+                  )}
+
+                  {!episode.audioUrl && !episode.videoUrl && (
                     <p className="text-sm text-muted-foreground">
-                      Audio not available
+                      No media available
                     </p>
                   )}
                 </div>
@@ -354,6 +433,173 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Video Player Section */}
+          {showVideo && episode.videoUrl && (
+            <Card>
+              <CardContent className="p-0">
+                <video
+                  controls
+                  className="w-full aspect-video"
+                >
+                  <source src={episode.videoUrl} type={episode.videoType || 'video/mp4'} />
+                  Your browser does not support the video tag.
+                </video>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Chapters Section */}
+          {episode.chaptersUrl && (
+            <Card>
+              <Collapsible open={isChaptersOpen} onOpenChange={setIsChaptersOpen}>
+                <CardHeader className="pb-3">
+                  <CollapsibleTrigger asChild>
+                    <button className="flex items-center justify-between w-full text-left hover:opacity-80 transition-opacity">
+                      <CardTitle className="flex items-center gap-2">
+                        <List className="w-5 h-5" />
+                        Chapters
+                        {chaptersContent && (
+                          <Badge variant="secondary" className="ml-2">
+                            {chaptersContent.length}
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      {isChaptersOpen ? (
+                        <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent>
+                    {isLoadingChapters ? (
+                      <div className="space-y-3">
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="flex items-start gap-3">
+                            <Skeleton className="w-16 h-16 rounded flex-shrink-0" />
+                            <div className="flex-1 space-y-2">
+                              <Skeleton className="h-4 w-24" />
+                              <Skeleton className="h-4 w-full" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : chaptersContent && chaptersContent.length > 0 ? (
+                      <div className="space-y-3">
+                        {chaptersContent.map((chapter, index) => (
+                          <div
+                            key={index}
+                            className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                            onClick={() => {
+                              // TODO: Seek to chapter time in audio player
+                              console.log('Seek to:', chapter.startTime);
+                            }}
+                          >
+                            {chapter.img && (
+                              <img
+                                src={chapter.img}
+                                alt={chapter.title}
+                                className="w-16 h-16 rounded object-cover flex-shrink-0"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-sm font-medium text-muted-foreground">
+                                  {formatDuration(chapter.startTime)}
+                                </span>
+                                <h3 className="font-semibold truncate">{chapter.title}</h3>
+                              </div>
+                              {chapter.url && (
+                                <a
+                                  href={chapter.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-primary hover:underline flex items-center gap-1 mt-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  Learn more
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground mb-4">Failed to load chapters</p>
+                        <a
+                          href={episode.chaptersUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          View Chapters File
+                        </a>
+                      </div>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          )}
+
+          {/* Transcript Section */}
+          {episode.transcriptUrl && (
+            <Card>
+              <Collapsible open={isTranscriptOpen} onOpenChange={setIsTranscriptOpen}>
+                <CardHeader className="pb-3">
+                  <CollapsibleTrigger asChild>
+                    <button className="flex items-center justify-between w-full text-left hover:opacity-80 transition-opacity">
+                      <CardTitle className="flex items-center gap-2">
+                        <BookOpen className="w-5 h-5" />
+                        Transcript
+                      </CardTitle>
+                      {isTranscriptOpen ? (
+                        <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent>
+                    {isLoadingTranscript ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-3/4" />
+                      </div>
+                    ) : transcriptContent ? (
+                      <div className="prose prose-sm max-w-none">
+                        <pre className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg overflow-x-auto max-h-[600px] overflow-y-auto">
+                          {transcriptContent}
+                        </pre>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground mb-4">Failed to load transcript</p>
+                        <a
+                          href={episode.transcriptUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          View Transcript File
+                        </a>
+                      </div>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          )}
 
 
           {/* Comments Section */}

@@ -230,7 +230,7 @@ function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[],
       <itunes:duration>${episode.duration ? formatDurationForRSS(episode.duration) : '00:00'}</itunes:duration>
       <itunes:explicit>${episode.explicit ? 'yes' : 'no'}</itunes:explicit>
       ${episode.imageUrl ? `<itunes:image href="${escapeXml(episode.imageUrl)}" />` : ''}
-      ${episode.transcriptUrl ? `<podcast:transcript url="${escapeXml(episode.transcriptUrl)}" type="${escapeXml(episode.transcriptType || 'text/plain')}" />` : ''}
+      ${episode.transcriptUrl ? `<podcast:transcript url="${escapeXml(episode.transcriptUrl)}" type="text/plain" />` : ''}
       ${episode.chaptersUrl ? `<podcast:chapters url="${escapeXml(episode.chaptersUrl)}" type="application/json+chapters" />` : ''}
       ${episode.content ? `<content:encoded><![CDATA[${episode.content}]]></content:encoded>` : ''}
     </item>`).join('')}
@@ -278,15 +278,6 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
   const videoUrl = videoTag?.[0];
   const videoType = videoTag?.[1] || 'video/mp4';
 
-  // Extract transcript URL and type from transcript tag
-  const transcriptTag = tags.get('transcript');
-  const transcriptUrl = transcriptTag?.[0];
-  const transcriptType = transcriptTag?.[1] || 'text/plain';
-
-  // Extract chapters URL from chapters tag
-  const chaptersTag = tags.get('chapters');
-  const chaptersUrl = chaptersTag?.[0];
-
   // Extract all 't' tags for topics
   const topicTags = event.tags
     .filter(([name]) => name === 't')
@@ -308,18 +299,26 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
     publishDate = new Date(event.created_at * 1000);
   }
 
+  // Extract transcript URL from tag
+  const transcriptUrl = tags.get('transcript')?.[0];
+
+  // Extract chapters URL from tag
+  const chaptersUrl = tags.get('chapters')?.[0];
+
+  // Content is just the show notes (plain text)
+  const content = event.content || undefined;
+
   return {
     id: event.id,
     title,
     description,
-    content: event.content || undefined,
+    content,
     audioUrl,
     audioType,
     videoUrl,
     videoType,
     imageUrl,
     transcriptUrl,
-    transcriptType,
     chaptersUrl,
     duration,
     episodeNumber: undefined,
@@ -758,7 +757,14 @@ async function buildRSS() {
       trailers = await fetchPodcastTrailersMultiRelay(relays, creatorPubkeyHex);
 
     } finally {
-      // Close relay connection if needed
+      // Close all relay connections
+      for (const { url, relay } of relays) {
+        try {
+          relay.close();
+        } catch (error) {
+          console.warn(`⚠️ Failed to close relay ${url}:`, error);
+        }
+      }
       console.log('🔌 Relay queries completed');
     }
 
@@ -810,6 +816,7 @@ async function buildRSS() {
     console.log('📡 Feed will be available at: /rss.xml');
     console.log('🏥 Health check available at: /rss-health');
 
+    process.exit(0);
   } catch (error) {
     console.error('❌ Error generating RSS feed:', error);
     process.exit(1);

@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { X, Upload, Save, Loader2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -38,7 +39,6 @@ const episodeEditSchema = z.object({
   videoUrl: z.string().url().optional().or(z.literal('')),
   imageUrl: z.string().url().optional().or(z.literal('')),
   transcriptUrl: z.string().url().optional().or(z.literal('')),
-  transcriptType: z.string().optional().or(z.literal('')),
   chaptersUrl: z.string().url().optional().or(z.literal('')),
   duration: z.number().positive().optional(),
   episodeNumber: z.number().positive().optional(),
@@ -63,6 +63,7 @@ export function EpisodeEditDialog({
   onSuccess
 }: EpisodeEditDialogProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { mutateAsync: updateEpisode, isPending } = useUpdateEpisode();
 
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -83,7 +84,6 @@ export function EpisodeEditDialog({
       videoUrl: episode.videoUrl || '',
       imageUrl: episode.imageUrl || '',
       transcriptUrl: episode.transcriptUrl || '',
-      transcriptType: episode.transcriptType || 'text/plain',
       chaptersUrl: episode.chaptersUrl || '',
       duration: episode.duration,
       episodeNumber: episode.episodeNumber,
@@ -106,7 +106,6 @@ export function EpisodeEditDialog({
       videoUrl: episode.videoUrl || '',
       imageUrl: episode.imageUrl || '',
       transcriptUrl: episode.transcriptUrl || '',
-      transcriptType: episode.transcriptType || 'text/plain',
       chaptersUrl: episode.chaptersUrl || '',
       duration: episode.duration,
       episodeNumber: episode.episodeNumber,
@@ -253,19 +252,9 @@ export function EpisodeEditDialog({
       setTranscriptFile(file);
       setValue('transcriptUrl', '');
 
-      // Auto-detect transcript type
-      const extension = file.name.split('.').pop()?.toLowerCase();
-      let transcriptType = 'text/plain';
-      if (extension === 'html') transcriptType = 'text/html';
-      else if (extension === 'vtt') transcriptType = 'text/vtt';
-      else if (extension === 'json') transcriptType = 'application/json';
-      else if (extension === 'srt') transcriptType = 'application/x-subrip';
-
-      setValue('transcriptType', transcriptType);
-
       toast({
         title: 'Transcript file selected',
-        description: `${file.name} (${transcriptType})`,
+        description: file.name,
       });
     }
   };
@@ -338,7 +327,6 @@ export function EpisodeEditDialog({
         videoUrl: data.videoUrl || undefined,
         imageUrl: data.imageUrl || undefined,
         transcriptUrl: data.transcriptUrl || undefined,
-        transcriptType: data.transcriptType || undefined,
         chaptersUrl: data.chaptersUrl || undefined,
         // Keep existing external references
         externalRefs: episode.externalRefs,
@@ -346,21 +334,27 @@ export function EpisodeEditDialog({
 
       console.log('Calling updateEpisode with:', { episodeId: episode.eventId, episodeIdentifier: episode.identifier, episodeData });
 
-      const result = await updateEpisode({
+      await updateEpisode({
         episodeId: episode.eventId,
         episodeIdentifier: episode.identifier,
         episodeData
       });
 
-      console.log('UpdateEpisode completed with result:', result);
+      console.log('UpdateEpisode completed successfully');
+
+      // Invalidate episode queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['episode'] });
+      queryClient.invalidateQueries({ queryKey: ['podcast-episodes'] });
+      queryClient.invalidateQueries({ queryKey: ['podcast-episode'] });
 
       toast({
         title: 'Episode updated!',
         description: 'Your episode has been updated successfully.',
       });
 
-      onSuccess();
+      // Close dialog and trigger success callback
       onOpenChange(false);
+      onSuccess();
 
     } catch (error) {
       console.error('Error in onSubmit:', error);
@@ -679,29 +673,6 @@ export function EpisodeEditDialog({
                               disabled={!!transcriptFile}
                               {...field}
                             />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="transcriptType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm text-muted-foreground">Type</FormLabel>
-                          <FormControl>
-                            <select
-                              {...field}
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                              disabled={!!transcriptFile}
-                            >
-                              <option value="text/plain">Text (Plain)</option>
-                              <option value="text/html">HTML</option>
-                              <option value="text/vtt">WebVTT</option>
-                              <option value="application/json">JSON</option>
-                              <option value="application/x-subrip">SRT (SubRip)</option>
-                            </select>
                           </FormControl>
                           <FormMessage />
                         </FormItem>

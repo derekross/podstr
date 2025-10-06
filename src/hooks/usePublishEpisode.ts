@@ -91,7 +91,6 @@ export function usePublishEpisode() {
 
       // Upload transcript file if provided
       let transcriptUrl = episodeData.transcriptUrl;
-      const transcriptType = episodeData.transcriptType;
       if (episodeData.transcriptFile) {
         try {
           const transcriptTags = await uploadFile(episodeData.transcriptFile);
@@ -138,19 +137,19 @@ export function usePublishEpisode() {
         tags.push(['video', videoUrl, videoType || 'video/mp4']);
       }
 
-      // Add transcript if provided (Podcasting 2.0)
-      if (transcriptUrl) {
-        tags.push(['transcript', transcriptUrl, transcriptType || 'text/plain']);
-      }
-
-      // Add chapters if provided (Podcasting 2.0)
-      if (chaptersUrl) {
-        tags.push(['chapters', chaptersUrl, 'application/json+chapters']);
-      }
-
       // Add duration if provided
       if (episodeData.duration && episodeData.duration > 0) {
         tags.push(['duration', episodeData.duration.toString()]);
+      }
+
+      // Add transcript URL if provided
+      if (transcriptUrl) {
+        tags.push(['transcript', transcriptUrl]);
+      }
+
+      // Add chapters URL if provided
+      if (chaptersUrl) {
+        tags.push(['chapters', chaptersUrl]);
       }
 
       // Add topic tags
@@ -274,7 +273,6 @@ export function useUpdateEpisode() {
 
       // Upload transcript file if provided
       let transcriptUrl = episodeData.transcriptUrl;
-      const transcriptType = episodeData.transcriptType;
       if (episodeData.transcriptFile) {
         try {
           const transcriptTags = await uploadFile(episodeData.transcriptFile);
@@ -340,19 +338,19 @@ export function useUpdateEpisode() {
         tags.push(['video', videoUrl, videoType || 'video/mp4']);
       }
 
-      // Add transcript if provided (Podcasting 2.0)
-      if (transcriptUrl) {
-        tags.push(['transcript', transcriptUrl, transcriptType || 'text/plain']);
-      }
-
-      // Add chapters if provided (Podcasting 2.0)
-      if (chaptersUrl) {
-        tags.push(['chapters', chaptersUrl, 'application/json+chapters']);
-      }
-
       // Add duration if provided
       if (episodeData.duration && episodeData.duration > 0) {
         tags.push(['duration', episodeData.duration.toString()]);
+      }
+
+      // Add transcript URL if provided
+      if (transcriptUrl) {
+        tags.push(['transcript', transcriptUrl]);
+      }
+
+      // Add chapters URL if provided
+      if (chaptersUrl) {
+        tags.push(['chapters', chaptersUrl]);
       }
 
       // Add topic tags
@@ -369,11 +367,11 @@ export function useUpdateEpisode() {
         tags
       });
 
-      // Invalidate queries
-      await queryClient.invalidateQueries({ queryKey: ['podcast-episodes'] });
-      await queryClient.invalidateQueries({ queryKey: ['podcast-episode', episodeId] });
-      await queryClient.invalidateQueries({ queryKey: ['podcast-stats'] });
-      await queryClient.invalidateQueries({ queryKey: ['rss-feed-generator'] });
+      // Invalidate queries (don't await - let them happen in background)
+      queryClient.invalidateQueries({ queryKey: ['podcast-episodes'] });
+      queryClient.invalidateQueries({ queryKey: ['podcast-episode', episodeId] });
+      queryClient.invalidateQueries({ queryKey: ['podcast-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['rss-feed-generator'] });
 
       return event.id;
     },

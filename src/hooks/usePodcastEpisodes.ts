@@ -54,6 +54,11 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
   const audioUrl = audioTag?.[0] || '';
   const audioType = audioTag?.[1] || 'audio/mpeg';
 
+  // Extract video URL and type from video tag
+  const videoTag = tags.get('video');
+  const videoUrl = videoTag?.[0];
+  const videoType = videoTag?.[1];
+
   // Extract all 't' tags for topics
   const topicTags = event.tags
     .filter(([name]) => name === 't')
@@ -75,13 +80,24 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
     publishDate = new Date(event.created_at * 1000);
   }
 
+  // Extract transcript URL from tag
+  const transcriptUrl = tags.get('transcript')?.[0];
+
+  // Extract chapters URL from tag
+  const chaptersUrl = tags.get('chapters')?.[0];
+
+  // Content is just the show notes (plain text)
+  const content = event.content || undefined;
+
   return {
     id: event.id,
     title,
     description,
-    content: event.content || undefined,
+    content,
     audioUrl,
     audioType,
+    videoUrl,
+    videoType,
     imageUrl,
     duration,
     episodeNumber: undefined, // Can be extended later if needed
@@ -89,6 +105,8 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
     publishDate,
     explicit: false, // Can be extended later if needed
     tags: topicTags,
+    transcriptUrl,
+    chaptersUrl,
     externalRefs: [],
     eventId: event.id,
     authorPubkey: event.pubkey,
