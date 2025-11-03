@@ -95,6 +95,7 @@ export interface PodcastConfig {
       reason?: string;
     };
     newFeedUrl?: string;
+    useOP3?: boolean;
   };
 
   /** RSS feed configuration */
@@ -173,7 +174,8 @@ export const PODCAST_CONFIG: PodcastConfig = {
     txt: parseJsonEnv(import.meta.env.VITE_PODCAST_TXT, undefined),
     remoteItem: parseJsonEnv(import.meta.env.VITE_PODCAST_REMOTE_ITEM, undefined),
     block: parseJsonEnv(import.meta.env.VITE_PODCAST_BLOCK, undefined),
-    newFeedUrl: import.meta.env.VITE_PODCAST_NEW_FEED_URL || undefined
+    newFeedUrl: import.meta.env.VITE_PODCAST_NEW_FEED_URL || undefined,
+    useOP3: import.meta.env.VITE_PODCAST_USE_OP3 === "true"
   },
 
   rss: {

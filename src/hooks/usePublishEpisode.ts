@@ -5,6 +5,8 @@ import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useUploadFile } from '@/hooks/useUploadFile';
 import type { EpisodeFormData } from '@/types/podcast';
 import { PODCAST_KINDS, isPodcastCreator } from '@/lib/podcastConfig';
+import { usePodcastConfig } from '@/hooks/usePodcastConfig';
+import { addOP3Prefix } from '@/lib/op3Utils';
 
 /**
  * Hook for publishing podcast episodes (creator only)
@@ -14,6 +16,7 @@ export function usePublishEpisode() {
   const { mutateAsync: createEvent } = useNostrPublish();
   const { mutateAsync: uploadFile } = useUploadFile();
   const queryClient = useQueryClient();
+  const podcastConfig = usePodcastConfig();
 
   return useMutation({
     mutationFn: async (episodeData: EpisodeFormData): Promise<string> => {
@@ -114,6 +117,21 @@ export function usePublishEpisode() {
       // Generate a unique identifier for this addressable episode
       const episodeIdentifier = `episode-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+      // Apply OP3 prefix to URLs if enabled in podcast settings
+      const useOP3 = podcastConfig.podcast.useOP3 || false;
+      if (useOP3) {
+        audioUrl = addOP3Prefix(audioUrl);
+        if (videoUrl) {
+          videoUrl = addOP3Prefix(videoUrl);
+        }
+        if (transcriptUrl) {
+          transcriptUrl = addOP3Prefix(transcriptUrl);
+        }
+        if (chaptersUrl) {
+          chaptersUrl = addOP3Prefix(chaptersUrl);
+        }
+      }
+
       // Build tags for addressable podcast episode (kind 30054)
       const tags: Array<[string, ...string[]]> = [
         ['d', episodeIdentifier], // Addressable event identifier
@@ -189,6 +207,7 @@ export function useUpdateEpisode() {
   const { mutateAsync: uploadFile } = useUploadFile();
   const { nostr } = useNostr();
   const queryClient = useQueryClient();
+  const podcastConfig = usePodcastConfig();
 
   return useMutation({
     mutationFn: async ({
@@ -313,6 +332,21 @@ export function useUpdateEpisode() {
 
       // Fallback to current time if no original pubdate found (for episodes created before this feature)
       const pubdate = originalPubdate || new Date().toUTCString();
+
+      // Apply OP3 prefix to URLs if enabled in podcast settings
+      const useOP3 = podcastConfig.podcast.useOP3 || false;
+      if (useOP3) {
+        audioUrl = addOP3Prefix(audioUrl);
+        if (videoUrl) {
+          videoUrl = addOP3Prefix(videoUrl);
+        }
+        if (transcriptUrl) {
+          transcriptUrl = addOP3Prefix(transcriptUrl);
+        }
+        if (chaptersUrl) {
+          chaptersUrl = addOP3Prefix(chaptersUrl);
+        }
+      }
 
       // Build tags for updated addressable podcast episode (kind 30054)
       const tags: Array<[string, ...string[]]> = [
