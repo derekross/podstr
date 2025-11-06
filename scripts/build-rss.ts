@@ -8,6 +8,8 @@ import type { PodcastEpisode, PodcastTrailer } from '../src/types/podcast.js';
 
 // Import naddr encoding function
 import { encodeEpisodeAsNaddr } from '../src/lib/nip19Utils.js';
+// Import OP3 utilities
+import { addOP3Prefix } from '../src/lib/op3Utils.js';
 
 // Copied from podcastConfig.ts to avoid import.meta.env issues
 const PODCAST_KINDS = {
@@ -161,6 +163,7 @@ function formatDurationForRSS(seconds: number): string {
  */
 function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[], podcastConfig: Record<string, unknown>): string {
   const baseUrl = podcastConfig.podcast.website || 'https://podstr.example';
+  const useOP3 = podcastConfig.podcast.useOP3 || false;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
@@ -218,22 +221,30 @@ function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[],
       `<podcast:trailer pubdate="${trailer.pubDate.toUTCString()}" url="${escapeXml(trailer.url)}"${trailer.length ? ` length="${trailer.length}"` : ''}${trailer.type ? ` type="${escapeXml(trailer.type)}"` : ''}${trailer.season ? ` season="${trailer.season}"` : ''}>${escapeXml(trailer.title)}</podcast:trailer>`
     ).join('\n    ')}
 
-    ${episodes.map(episode => `
+    ${episodes.map(episode => {
+      // Apply OP3 prefix to URLs if enabled
+      const audioUrl = useOP3 ? addOP3Prefix(episode.audioUrl) : episode.audioUrl;
+      const videoUrl = episode.videoUrl && useOP3 ? addOP3Prefix(episode.videoUrl) : episode.videoUrl;
+      const transcriptUrl = episode.transcriptUrl && useOP3 ? addOP3Prefix(episode.transcriptUrl) : episode.transcriptUrl;
+      const chaptersUrl = episode.chaptersUrl && useOP3 ? addOP3Prefix(episode.chaptersUrl) : episode.chaptersUrl;
+
+      return `
     <item>
       <title>${escapeXml(episode.title)}</title>
       <description>${escapeXml(episode.description || '')}</description>
       <link>${escapeXml(baseUrl)}/${encodeEpisodeAsNaddr(episode.authorPubkey, episode.identifier)}</link>
       <pubDate>${episode.publishDate.toUTCString()}</pubDate>
       <guid isPermaLink="false">${episode.authorPubkey}:${episode.identifier}</guid>
-      <enclosure url="${escapeXml(episode.audioUrl)}" type="${episode.audioType}" length="0" />
-      ${episode.videoUrl ? `<enclosure url="${escapeXml(episode.videoUrl)}" type="${episode.videoType || 'video/mp4'}" length="0" />` : ''}
+      <enclosure url="${escapeXml(audioUrl)}" type="${episode.audioType}" length="0" />
+      ${videoUrl ? `<enclosure url="${escapeXml(videoUrl)}" type="${episode.videoType || 'video/mp4'}" length="0" />` : ''}
       <itunes:duration>${episode.duration ? formatDurationForRSS(episode.duration) : '00:00'}</itunes:duration>
       <itunes:explicit>${episode.explicit ? 'yes' : 'no'}</itunes:explicit>
       ${episode.imageUrl ? `<itunes:image href="${escapeXml(episode.imageUrl)}" />` : ''}
-      ${episode.transcriptUrl ? `<podcast:transcript url="${escapeXml(episode.transcriptUrl)}" type="text/plain" />` : ''}
-      ${episode.chaptersUrl ? `<podcast:chapters url="${escapeXml(episode.chaptersUrl)}" type="application/json+chapters" />` : ''}
+      ${transcriptUrl ? `<podcast:transcript url="${escapeXml(transcriptUrl)}" type="text/plain" />` : ''}
+      ${chaptersUrl ? `<podcast:chapters url="${escapeXml(chaptersUrl)}" type="application/json+chapters" />` : ''}
       ${episode.content ? `<content:encoded><![CDATA[${episode.content}]]></content:encoded>` : ''}
-    </item>`).join('')}
+    </item>`;
+    }).join('')}
   </channel>
 </rss>`;
 }
@@ -769,6 +780,7 @@ async function buildRSS() {
     }
 
     console.log(`📊 Generating RSS with ${episodes.length} episodes and ${trailers.length} trailers`);
+    console.log(`🔍 OP3 Analytics: ${finalConfig.podcast.useOP3 ? 'ENABLED' : 'DISABLED'}`);
 
     // Generate RSS feed with fetched data
     const rssContent = generateRSSFeed(episodes, trailers, finalConfig);
