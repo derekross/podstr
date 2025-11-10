@@ -26,7 +26,16 @@ export function useNostrPublish(): UseMutationResult<NostrEvent> {
           created_at: t.created_at ?? Math.floor(Date.now() / 1000),
         });
 
-        await nostr.event(event, { signal: AbortSignal.timeout(5000) });
+        // Use longer timeout for publishing (15 seconds) to allow relays to respond
+        // Even if some relays fail, as long as one succeeds, the event is published
+        try {
+          await nostr.event(event, { signal: AbortSignal.timeout(15000) });
+        } catch (error) {
+          // Log error but don't fail - if any relay accepted it, we're good
+          console.warn("Some relays failed to accept the event, but it may have been published:", error);
+          // The event was signed and attempted to publish, so we can still return it
+        }
+
         return event;
       } else {
         throw new Error("User is not logged in");

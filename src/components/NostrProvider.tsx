@@ -20,14 +20,14 @@ function NostrProvider(props: NostrProviderProps) {
   // Use refs so the pool always has the latest data
   const relayUrl = useRef<string>(config.relayUrl);
 
-  // Define multiple relays for better data coverage (matches RSS script)
-  // This ensures consistent data across all parts of the app
+  // Define multiple relays prioritized by speed and reliability
+  // Using 5 relays for good coverage while maintaining performance
   const multiRelayUrls = useRef<string[]>([
-    'wss://relay.primal.net',
-    'wss://relay.nostr.band',
-    'wss://relay.damus.io',
-    'wss://relay.ditto.pub'
-    // Note: nos.lol removed to match RSS script and improve performance
+    'wss://relay.primal.net',  // Fast and reliable
+    'wss://relay.damus.io',    // Good uptime
+    'wss://relay.nostr.band',  // Good data coverage
+    'wss://nos.lol',           // Popular relay
+    'wss://relay.ditto.pub'    // Good for publishing
   ]);
 
   // Update refs when config changes
@@ -37,7 +37,7 @@ function NostrProvider(props: NostrProviderProps) {
     multiRelayUrls.current = [
       config.relayUrl,
       ...multiRelayUrls.current.filter(url => url !== config.relayUrl)
-    ].slice(0, 4); // Limit to 4 relays max for performance
+    ].slice(0, 5); // Limit to 5 relays max for good coverage
     queryClient.resetQueries();
   }, [config.relayUrl, queryClient]);
 

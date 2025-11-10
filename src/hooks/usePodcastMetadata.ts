@@ -30,6 +30,7 @@ interface PodcastMetadata {
   };
   type: 'episodic' | 'serial';
   complete: boolean;
+  useOP3?: boolean;
   updated_at: number;
 }
 
@@ -38,16 +39,20 @@ export function usePodcastMetadata() {
 
   return useQuery({
     queryKey: ['podcast-metadata'],
-    queryFn: async (): Promise<PodcastMetadata> => {
+    queryFn: async (context): Promise<PodcastMetadata> => {
       try {
-        // Query for podcast metadata events
+        // Query for podcast metadata events with shorter timeout for speed
+        // NPool will query all configured relays and return results from fastest responders
+        const signal = AbortSignal.any([context.signal, AbortSignal.timeout(3000)]);
+
         const events = await nostr.query([
           {
             kinds: [PODCAST_KINDS.PODCAST_METADATA], // Addressable podcast metadata event
             authors: [getCreatorPubkeyHex()],
-            '#d': ['podcast-metadata']
+            '#d': ['podcast-metadata'],
+            limit: 1 // Only need the most recent event
           }
-        ]);
+        ], { signal });
 
         if (events.length > 0) {
           // Get the most recent event
@@ -89,7 +94,9 @@ export function usePodcastMetadata() {
         updated_at: 0
       };
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: 10 * 60 * 1000, // 10 minutes - cache longer for speed
+    gcTime: 60 * 60 * 1000, // 1 hour
+    retry: 1, // Only retry once for faster failure
+    retryDelay: 500, // Quick retry
   });
 }

@@ -1,6 +1,7 @@
 import { useSeoMeta } from '@unhead/react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Settings,
   Save,
@@ -19,7 +20,7 @@ import {
   Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,6 +43,7 @@ import { genRSSFeed } from '@/lib/rssGenerator';
 import { EpisodeManagement } from '@/components/studio/EpisodeManagement';
 import { TrailerManagement } from '@/components/studio/TrailerManagement';
 import { BlossomServerManager } from '@/components/studio/BlossomServerManager';
+import { OP3Analytics } from '@/components/studio/OP3Analytics';
 
 interface ProfileFormData {
   name: string;
@@ -157,8 +159,9 @@ interface ExtendedPodcastMetadata {
 
 const Studio = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useCurrentUser();
-  const { mutate: createEvent } = useNostrPublish();
+  const { mutateAsync: createEvent } = useNostrPublish();
   const { toast } = useToast();
   const { data: podcastMetadata, isLoading: isLoadingMetadata } = usePodcastMetadata();
   const podcastConfig = usePodcastConfig();
@@ -487,11 +490,29 @@ const Studio = () => {
 
         await createEvent(podcastMetadataEvent);
 
-        // Update RSS feed with the new configuration
-        await genRSSFeed(undefined, podcastConfig);
+        // Invalidate podcast metadata cache to force refetch with new data
+        queryClient.invalidateQueries({ queryKey: ['podcast-metadata'] });
 
-        // Refetch RSS feed generator to ensure it uses the latest configuration
-        await refetchRSSFeed();
+        // Update RSS feed with the new configuration (non-blocking)
+        try {
+          await Promise.race([
+            genRSSFeed(undefined, podcastConfig),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('RSS generation timeout')), 5000))
+          ]);
+          console.log('RSS feed updated successfully');
+        } catch (error) {
+          console.warn('RSS feed update failed or timed out, but settings were saved:', error);
+        }
+
+        // Refetch RSS feed generator (non-blocking)
+        try {
+          await Promise.race([
+            refetchRSSFeed(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('RSS refetch timeout')), 3000))
+          ]);
+        } catch (error) {
+          console.warn('RSS refetch failed or timed out, but settings were saved:', error);
+        }
       }
 
       toast({
@@ -1044,7 +1065,7 @@ const Studio = () => {
                               <TooltipTrigger asChild>
                                 <Info className="w-4 h-4 text-muted-foreground cursor-help" />
                               </TooltipTrigger>
-                              <TooltipContent className="max-w-xs">
+                              <TooltipContent className="max-w-xs bg-popover text-popover-foreground border border-border shadow-md">
                                 <p className="font-semibold mb-1">What is OP3?</p>
                                 <p className="text-sm">
                                   OP3.dev (Open Podcast Prefix Project) provides podcast analytics by prefixing episode URLs.
@@ -1458,6 +1479,17 @@ const Studio = () => {
 
             {/* Analytics Tab */}
             <TabsContent value="analytics" className="space-y-6">
+              {/* Nostr Engagement Analytics */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Zap className="w-5 h-5" />
+                    <span>Nostr Engagement</span>
+                  </CardTitle>
+                  <CardDescription>Social interactions from the Nostr network</CardDescription>
+                </CardHeader>
+              </Card>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card>
                   <CardContent className="p-6 text-center">
@@ -1519,7 +1551,7 @@ const Studio = () => {
                     ) : analytics?.topEpisodes && analytics.topEpisodes.length > 0 ? (
                       <div className="space-y-4">
                         {analytics.topEpisodes.slice(0, 5).map((episode, index) => (
-                          <div key={episode.episode.id} className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50">
+                          <div key={episode.episode.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted">
                             <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-medium">
                               {index + 1}
                             </div>
@@ -1647,6 +1679,9 @@ const Studio = () => {
                   </CardContent>
                 </Card>
               )}
+
+              {/* OP3.dev Analytics Section */}
+              <OP3Analytics />
             </TabsContent>
           </Tabs>
         </div>
