@@ -86,6 +86,7 @@ export function useBlossomServers() {
   // Get combined server list (user + defaults)
   const getAllServers = () => {
     const defaultServers = [
+      'https://nostr.download',
       'https://blossom.band'
     ];
 
@@ -108,6 +109,7 @@ export function useBlossomServers() {
  * Default recommended Blossom servers
  */
 export const DEFAULT_BLOSSOM_SERVERS = [
+  'https://nostr.download',
   'https://blossom.band'
 ];
 
