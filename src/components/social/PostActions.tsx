@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MessageCircle, Repeat, Heart, Share } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { ZapButton } from '@/components/ZapButton';
 import { NoteContent } from '@/components/NoteContent';
@@ -436,6 +436,9 @@ export function PostActions({ event, className }: PostActionsProps) {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Reply to Note</DialogTitle>
+            <DialogDescription>
+              Write a reply to this note.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">

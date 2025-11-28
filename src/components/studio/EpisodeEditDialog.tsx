@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -371,6 +372,9 @@ export function EpisodeEditDialog({
       <DialogContent className="max-w-4xl max-h-[95vh] w-[95vw] sm:w-full sm:max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="text-lg sm:text-xl">Edit Episode</DialogTitle>
+          <DialogDescription>
+            Update episode details, audio, artwork, and metadata.
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[calc(95vh-8rem)] sm:max-h-[calc(90vh-8rem)] pr-2 sm:pr-6">

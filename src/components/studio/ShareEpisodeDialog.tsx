@@ -5,6 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -82,6 +83,9 @@ export function ShareEpisodeDialog({ episode, open, onOpenChange }: ShareEpisode
             <Share className="w-5 h-5" />
             <span>Share Episode</span>
           </DialogTitle>
+          <DialogDescription>
+            Share this episode with your followers on Nostr.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

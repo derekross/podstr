@@ -86,10 +86,9 @@ export function useBlossomServers() {
   // Get combined server list (user + defaults)
   const getAllServers = () => {
     const defaultServers = [
-      'https://blossom.primal.net',
       'https://blossom.band'
     ];
-    
+
     return [
       ...userServers,
       ...defaultServers.filter(server => !userServers.includes(server))
@@ -109,7 +108,6 @@ export function useBlossomServers() {
  * Default recommended Blossom servers
  */
 export const DEFAULT_BLOSSOM_SERVERS = [
-  'https://blossom.primal.net',
   'https://blossom.band'
 ];
 

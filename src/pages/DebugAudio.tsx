@@ -45,10 +45,6 @@ export default function DebugAudio() {
     {
       name: 'Sample Videos MP3',
       url: 'https://sample-videos.com/zip/10/mp3/SampleAudio_0.4mb_mp3.mp3'
-    },
-    {
-      name: 'Primal Blossom Test (if exists)',
-      url: 'https://blossom.primal.net/test-audio.mp3'
     }
   ];
 
