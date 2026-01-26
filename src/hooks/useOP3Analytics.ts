@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { usePodcastMetadata } from '@/hooks/usePodcastMetadata';
+import { PODCAST_CONFIG } from '@/lib/podcastConfig';
 
 // OP3 API types
 interface OP3Analytics {
@@ -48,11 +49,13 @@ interface OP3Analytics {
 export function useOP3Analytics(timeRange: '7d' | '30d' | '90d' | 'month' = '30d') {
   const { data: podcastMetadata } = usePodcastMetadata();
 
+  // API token is the only env var - it's a secret
   const apiToken = import.meta.env.VITE_OP3_API_TOKEN;
-  const rawGuid = import.meta.env.VITE_PODCAST_GUID;
+  // Get GUID from config (no longer an env var)
+  const rawGuid = PODCAST_CONFIG.podcast.guid;
   // OP3 API requires 32-char hex format (no dashes)
   const showUuid = rawGuid?.replace(/-/g, '');
-  const useOP3 = podcastMetadata?.useOP3 || false;
+  const useOP3 = podcastMetadata?.useOP3 || PODCAST_CONFIG.podcast.useOP3 || false;
 
   return useQuery<OP3Analytics>({
     queryKey: ['op3-analytics', showUuid, timeRange],
@@ -312,10 +315,12 @@ export function useOP3Analytics(timeRange: '7d' | '30d' | '90d' | 'month' = '30d
  */
 export function useOP3Available() {
   const { data: podcastMetadata } = usePodcastMetadata();
+  // API token is the only env var - it's a secret
   const apiToken = import.meta.env.VITE_OP3_API_TOKEN;
-  const rawGuid = import.meta.env.VITE_PODCAST_GUID;
+  // Get GUID from config (no longer an env var)
+  const rawGuid = PODCAST_CONFIG.podcast.guid;
   const showUuid = rawGuid?.replace(/-/g, '');
-  const useOP3 = podcastMetadata?.useOP3 || false;
+  const useOP3 = podcastMetadata?.useOP3 || PODCAST_CONFIG.podcast.useOP3 || false;
 
   return {
     isAvailable: useOP3 && !!apiToken && !!showUuid,
