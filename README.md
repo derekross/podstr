@@ -2,6 +2,9 @@
 
 A Nostr-powered podcast platform for single creator accounts that combines decentralized publishing with Podcasting 2.0 standards.
 
+[![Edit with Shakespeare](https://img.shields.io/badge/Edit%20with-Shakespeare.diy-8B5CF6?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0ibTEyIDMtMS45MTIgNS44MTNhMiAyIDAgMCAxLTEuMjc1IDEuMjc1TDMgMTJsNS44MTMgMS45MTJhMiAyIDAgMCAxIDEuMjc1IDEuMjc1TDEyIDIxbDEuOTEyLTUuODEzYTIgMiAwIDAgMSAxLjI3NS0xLjI3NUwyMSAxMmwtNS44MTMtMS45MTJhMiAyIDAgMCAxLTEuMjc1LTEuMjc1TDEyIDN6Ii8+PC9zdmc+)](https://shakespeare.diy)
+[![Build Your Prompt](https://img.shields.io/badge/Build%20Your-Prompt-3B82F6?style=for-the-badge)](https://podstr.org/prompt-builder)
+
 ## Features
 
 ### Podcast Publishing
@@ -77,11 +80,25 @@ npx tsx scripts/build-rss.ts
 
 Podstr 2.0 uses direct configuration in `src/lib/podcastConfig.ts` - no environment variables needed!
 
-The easiest way to configure your podcast is using [Shakespeare.diy](https://shakespeare.diy):
+### Quick Start with Shakespeare.diy (Recommended)
 
-1. Fork/clone this repository on GitHub
-2. Open your repo in Shakespeare.diy
-3. Copy the configuration prompt below, fill in your answers, and paste it
+The easiest way to configure your podcast is using AI-assisted setup:
+
+1. **Fork this repository** on GitHub
+2. **Build your prompt** using our [Prompt Builder](https://podstr.org/prompt-builder)
+3. **Open your fork** in [Shakespeare.diy](https://shakespeare.diy)
+4. **Paste your prompt** - Shakespeare will configure everything automatically!
+
+[![Edit with Shakespeare](https://img.shields.io/badge/Edit%20with-Shakespeare.diy-8B5CF6?style=flat-square)](https://shakespeare.diy)
+[![Build Your Prompt](https://img.shields.io/badge/Build%20Your-Prompt-3B82F6?style=flat-square)](https://podstr.org/prompt-builder)
+
+### Manual Configuration
+
+Alternatively, you can edit `src/lib/podcastConfig.ts` directly. The file is well-commented with all available options.
+
+### Configuration Prompt for Shakespeare.diy
+
+If you prefer to write your own prompt, copy this into Shakespeare.diy and replace the placeholder values:
 
 ### Configuration Prompt for Shakespeare.diy
 
