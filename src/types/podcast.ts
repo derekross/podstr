@@ -24,6 +24,8 @@ export interface PodcastEpisode {
   chaptersUrl?: string;
   guests?: PodcastGuest[];
   externalRefs?: ExternalReference[];
+  // Per-episode value splits (overrides podcast defaults)
+  value?: EpisodeValue;
 
   // Nostr-specific fields
   eventId: string;
@@ -68,6 +70,29 @@ export interface ExternalReference {
 }
 
 /**
+ * Value recipient for Podcasting 2.0 value4value splits
+ */
+export interface ValueRecipient {
+  name: string;
+  type: 'node' | 'lnaddress';
+  address: string;
+  split: number;  // Percentage (0-100)
+  customKey?: string;
+  customValue?: string;
+  fee?: boolean;
+}
+
+/**
+ * Episode-level value configuration (overrides podcast defaults)
+ */
+export interface EpisodeValue {
+  enabled: boolean;  // Whether to override podcast default
+  amount?: number;   // Suggested amount per minute
+  currency?: string; // "sats", "USD", etc.
+  recipients: ValueRecipient[];
+}
+
+/**
  * Podcast episode form data for publishing
  */
 export interface EpisodeFormData {
@@ -93,6 +118,8 @@ export interface EpisodeFormData {
   explicit?: boolean;
   tags: string[];
   externalRefs?: ExternalReference[];
+  publishDate?: Date; // Optional backdate for episode publication
+  value?: EpisodeValue; // Per-episode value splits (overrides podcast defaults)
 }
 
 /**
@@ -165,6 +192,8 @@ export interface RSSItem {
     url: string;
     message: string;
   }>;
+  // Per-episode value splits (overrides podcast defaults)
+  value?: EpisodeValue;
 }
 
 /**

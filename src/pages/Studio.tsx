@@ -661,7 +661,6 @@ const Studio = () => {
             ) : (
               <div className="flex items-center space-x-2">
                 <Button
-                  variant="outline"
                   onClick={() => setEditingSection('profile')}
                   disabled={editingSection === 'podcast'}
                 >

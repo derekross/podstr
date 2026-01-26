@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useInView } from 'react-intersection-observer';
 import { format } from 'date-fns';
 import {
   Edit,
@@ -15,7 +16,8 @@ import {
   Hash,
   AlertTriangle,
   Plus,
-  Share
+  Share,
+  Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { encodeEpisodeAsNaddr } from '@/lib/nip19Utils';
@@ -42,7 +44,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { usePodcastEpisodes } from '@/hooks/usePodcastEpisodes';
+import { useInfiniteEpisodes } from '@/hooks/usePodcastEpisodes';
 import { useDeleteEpisode } from '@/hooks/usePublishEpisode';
 import { useToast } from '@/hooks/useToast';
 import { AudioPlayer } from '@/components/podcast/AudioPlayer';
@@ -61,34 +63,57 @@ export function EpisodeManagement({ className }: EpisodeManagementProps) {
   const podcastConfig = usePodcastConfig();
   const { mutateAsync: deleteEpisode, isPending: isDeleting } = useDeleteEpisode();
 
-  const [searchOptions, setSearchOptions] = useState<EpisodeSearchOptions>({
-    limit: 50,
-    sortBy: 'date',
-    sortOrder: 'desc'
-  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<EpisodeSearchOptions['sortBy']>('date');
+  const [sortOrder, setSortOrder] = useState<EpisodeSearchOptions['sortOrder']>('desc');
   const [episodeToDelete, setEpisodeToDelete] = useState<PodcastEpisode | null>(null);
   const [episodeToEdit, setEpisodeToEdit] = useState<PodcastEpisode | null>(null);
   const [episodeToShare, setEpisodeToShare] = useState<PodcastEpisode | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
 
-  const { data: episodes, isLoading, error } = usePodcastEpisodes(searchOptions);
+  // Intersection observer for infinite scroll
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0,
+    rootMargin: '100px',
+  });
+
+  // Use infinite query for episodes
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteEpisodes({
+    limit: 15,
+    query: searchQuery || undefined,
+    sortBy,
+    sortOrder,
+  });
+
+  // Flatten episodes from all pages
+  const episodes = useMemo(() => {
+    return data?.pages.flatMap(page => page.episodes) || [];
+  }, [data]);
+
+  // Trigger loading more when scrolling
+  useEffect(() => {
+    if (inView && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleSearch = (query: string) => {
-    setSearchOptions(prev => ({ ...prev, query: query || undefined }));
+    setSearchQuery(query);
   };
 
-  const handleSortChange = (sortBy: string) => {
-    setSearchOptions(prev => ({
-      ...prev,
-      sortBy: sortBy as EpisodeSearchOptions['sortBy']
-    }));
+  const handleSortChange = (newSortBy: string) => {
+    setSortBy(newSortBy as EpisodeSearchOptions['sortBy']);
   };
 
   const handleSortOrderToggle = () => {
-    setSearchOptions(prev => ({
-      ...prev,
-      sortOrder: prev.sortOrder === 'desc' ? 'asc' : 'desc'
-    }));
+    setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
   };
 
   const handleDeleteEpisode = async (episode: PodcastEpisode) => {
@@ -195,7 +220,7 @@ export function EpisodeManagement({ className }: EpisodeManagementProps) {
               />
             </div>
             <div className="flex items-center space-x-2">
-              <Select value={searchOptions.sortBy} onValueChange={handleSortChange}>
+              <Select value={sortBy} onValueChange={handleSortChange}>
                 <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>
@@ -211,7 +236,7 @@ export function EpisodeManagement({ className }: EpisodeManagementProps) {
                 size="sm"
                 onClick={handleSortOrderToggle}
               >
-                {searchOptions.sortOrder === 'desc' ? '↓' : '↑'}
+                {sortOrder === 'desc' ? '↓' : '↑'}
               </Button>
             </div>
           </div>
@@ -239,10 +264,10 @@ export function EpisodeManagement({ className }: EpisodeManagementProps) {
             <div className="text-center py-12">
               <Volume2 className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-semibold mb-2">
-                {searchOptions.query ? 'No episodes found' : 'No episodes yet'}
+                {searchQuery ? 'No episodes found' : 'No episodes yet'}
               </h3>
               <p className="text-muted-foreground mb-6">
-                {searchOptions.query
+                {searchQuery
                   ? 'Try adjusting your search terms'
                   : 'Start by publishing your first episode'
                 }
@@ -424,6 +449,20 @@ export function EpisodeManagement({ className }: EpisodeManagementProps) {
                   </CardContent>
                 </Card>
               ))}
+              
+              {/* Infinite scroll trigger */}
+              <div ref={loadMoreRef} className="py-4">
+                {isFetchingNextPage && (
+                  <div className="flex justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+                {!hasNextPage && episodes.length > 15 && (
+                  <p className="text-center text-sm text-muted-foreground">
+                    All episodes loaded
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

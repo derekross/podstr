@@ -1,12 +1,13 @@
-import { useState } from 'react';
-import { Search, SortAsc, SortDesc } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { useInView } from 'react-intersection-observer';
+import { Search, SortAsc, SortDesc, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EpisodeCard } from './EpisodeCard';
-import { usePodcastEpisodes } from '@/hooks/usePodcastEpisodes';
+import { useInfiniteEpisodes, usePodcastEpisodes } from '@/hooks/usePodcastEpisodes';
 import type { PodcastEpisode, EpisodeSearchOptions } from '@/types/podcast';
 
 interface EpisodeListProps {
@@ -16,41 +17,79 @@ interface EpisodeListProps {
   className?: string;
   onPlayEpisode?: (episode: PodcastEpisode) => void;
   _autoPlay?: boolean;
+  /** Use infinite scroll for loading more episodes (default: true) */
+  infiniteScroll?: boolean;
 }
 
 export function EpisodeList({
   showSearch = true,
   _showPlayer = true,
-  limit = 50,
+  limit = 10,
   className,
   onPlayEpisode,
-  _autoPlay = false
+  _autoPlay = false,
+  infiniteScroll = true
 }: EpisodeListProps) {
-  const [searchOptions, setSearchOptions] = useState<EpisodeSearchOptions>({
-    limit,
-    sortBy: 'date',
-    sortOrder: 'desc'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<EpisodeSearchOptions['sortBy']>('date');
+  const [sortOrder, setSortOrder] = useState<EpisodeSearchOptions['sortOrder']>('desc');
+  
+  // Use intersection observer for infinite scroll trigger
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0,
+    rootMargin: '100px', // Start loading before reaching the end
   });
-  const _currentEpisode = useState<PodcastEpisode | null>(null);
 
-  const { data: episodes, isLoading, error } = usePodcastEpisodes(searchOptions);
+  // Use infinite query for infinite scroll mode
+  const infiniteQuery = useInfiniteEpisodes({
+    limit,
+    query: searchQuery || undefined,
+    sortBy,
+    sortOrder,
+  });
+
+  // Use regular query for non-infinite mode (small lists)
+  const regularQuery = usePodcastEpisodes({
+    limit,
+    query: searchQuery || undefined,
+    sortBy,
+    sortOrder,
+    skipZaps: true, // Skip zaps for faster loading in simple mode
+  });
+
+  // Choose which query to use
+  const query = infiniteScroll ? infiniteQuery : regularQuery;
+  
+  // Flatten pages for infinite scroll
+  const episodes = useMemo(() => {
+    if (infiniteScroll && infiniteQuery.data) {
+      return infiniteQuery.data.pages.flatMap(page => page.episodes);
+    }
+    return regularQuery.data || [];
+  }, [infiniteScroll, infiniteQuery.data, regularQuery.data]);
+
+  const isLoading = query.isLoading;
+  const isFetchingMore = infiniteScroll && infiniteQuery.isFetchingNextPage;
+  const hasMore = infiniteScroll && infiniteQuery.hasNextPage;
+  const error = query.error;
+
+  // Trigger loading more when scrolling to the bottom
+  useEffect(() => {
+    if (inView && hasMore && !isFetchingMore && infiniteScroll) {
+      infiniteQuery.fetchNextPage();
+    }
+  }, [inView, hasMore, isFetchingMore, infiniteScroll, infiniteQuery]);
 
   const handleSearch = (query: string) => {
-    setSearchOptions(prev => ({ ...prev, query: query || undefined }));
+    setSearchQuery(query);
   };
 
-  const handleSortChange = (sortBy: string) => {
-    setSearchOptions(prev => ({
-      ...prev,
-      sortBy: sortBy as EpisodeSearchOptions['sortBy']
-    }));
+  const handleSortChange = (newSortBy: string) => {
+    setSortBy(newSortBy as EpisodeSearchOptions['sortBy']);
   };
 
   const handleSortOrderChange = () => {
-    setSearchOptions(prev => ({
-      ...prev,
-      sortOrder: prev.sortOrder === 'desc' ? 'asc' : 'desc'
-    }));
+    setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
   };
 
   const handlePlayEpisode = (episode: PodcastEpisode) => {
@@ -85,12 +124,13 @@ export function EpisodeList({
               <Input
                 placeholder="Search episodes..."
                 className="pl-10"
+                value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
               />
             </div>
 
             <div className="flex gap-2">
-              <Select value={searchOptions.sortBy} onValueChange={handleSortChange}>
+              <Select value={sortBy} onValueChange={handleSortChange}>
                 <SelectTrigger className="w-32">
                   <SelectValue />
                 </SelectTrigger>
@@ -107,7 +147,7 @@ export function EpisodeList({
                 size="icon"
                 onClick={handleSortOrderChange}
               >
-                {searchOptions.sortOrder === 'desc' ? (
+                {sortOrder === 'desc' ? (
                   <SortDesc className="h-4 w-4" />
                 ) : (
                   <SortAsc className="h-4 w-4" />
@@ -117,7 +157,6 @@ export function EpisodeList({
           </div>
         </div>
       )}
-
 
       {isLoading ? (
         <div className="space-y-6">
@@ -153,6 +192,22 @@ export function EpisodeList({
               onPlayEpisode={handlePlayEpisode}
             />
           ))}
+          
+          {/* Infinite scroll trigger */}
+          {infiniteScroll && (
+            <div ref={loadMoreRef} className="py-4">
+              {isFetchingMore && (
+                <div className="flex justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              {!hasMore && episodes.length > limit && (
+                <p className="text-center text-sm text-muted-foreground">
+                  All episodes loaded
+                </p>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="col-span-full">
@@ -160,12 +215,12 @@ export function EpisodeList({
             <CardContent className="py-12 px-8 text-center">
               <div className="max-w-sm mx-auto space-y-6">
                 <p className="text-muted-foreground">
-                  {searchOptions.query
-                    ? `No episodes found for "${searchOptions.query}"`
+                  {searchQuery
+                    ? `No episodes found for "${searchQuery}"`
                     : "No episodes published yet"
                   }
                 </p>
-                {!searchOptions.query && (
+                {!searchQuery && (
                   <p className="text-sm text-muted-foreground">
                     Episodes will appear here once the creator publishes them.
                   </p>

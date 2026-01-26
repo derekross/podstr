@@ -35,6 +35,8 @@ function episodeToRSSItem(episode: PodcastEpisode, config?: PodcastConfig): RSSI
     seasonNumber: episode.seasonNumber,
     explicit: episode.explicit,
     image: episode.imageUrl,
+    // Per-episode value splits (overrides podcast defaults)
+    value: episode.value,
   };
 }
 
@@ -196,6 +198,12 @@ export function generateRSSFeed(episodes: PodcastEpisode[], config?: PodcastConf
 
       <!-- Podcasting 2.0 tags -->
       <podcast:guid>${escapeXml(item.guid)}</podcast:guid>
+      ${item.value && item.value.enabled && item.value.recipients && item.value.recipients.length > 0 ?
+        `<podcast:value type="${item.value.currency || 'lightning'}" method="lightning">
+        ${item.value.recipients.map(recipient =>
+          `<podcast:valueRecipient name="${escapeXml(recipient.name)}" type="${escapeXml(recipient.type)}" address="${escapeXml(recipient.address)}" split="${recipient.split}"${recipient.customKey ? ` customKey="${escapeXml(recipient.customKey)}"` : ''}${recipient.customValue ? ` customValue="${escapeXml(recipient.customValue)}"` : ''}${recipient.fee ? ` fee="true"` : ''} />`
+        ).join('\n        ')}
+      </podcast:value>` : ''}
     </item>`).join('')}
   </channel>
 </rss>`;

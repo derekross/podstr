@@ -243,6 +243,12 @@ function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[],
       ${transcriptUrl ? `<podcast:transcript url="${escapeXml(transcriptUrl)}" type="text/plain" />` : ''}
       ${chaptersUrl ? `<podcast:chapters url="${escapeXml(chaptersUrl)}" type="application/json+chapters" />` : ''}
       ${episode.content ? `<content:encoded><![CDATA[${episode.content}]]></content:encoded>` : ''}
+      ${episode.value && episode.value.enabled && episode.value.recipients && episode.value.recipients.length > 0 ?
+        `<podcast:value type="${episode.value.currency || 'lightning'}" method="lightning">
+        ${episode.value.recipients.map(recipient =>
+          `<podcast:valueRecipient name="${escapeXml(recipient.name)}" type="${escapeXml(recipient.type)}" address="${escapeXml(recipient.address)}" split="${recipient.split}"${recipient.customKey ? ` customKey="${escapeXml(recipient.customKey)}"` : ''}${recipient.customValue ? ` customValue="${escapeXml(recipient.customValue)}"` : ''}${recipient.fee ? ` fee="true"` : ''} />`
+        ).join('\n        ')}
+      </podcast:value>` : ''}
     </item>`;
     }).join('')}
   </channel>
@@ -319,6 +325,24 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
   // Content is just the show notes (plain text)
   const content = event.content || undefined;
 
+  // Parse per-episode value splits
+  const valueTagValue = tags.get('value')?.[0];
+  let value = undefined;
+  if (valueTagValue) {
+    try {
+      value = JSON.parse(valueTagValue);
+    } catch {
+      console.warn('Failed to parse episode value tag:', valueTagValue);
+    }
+  }
+
+  // Parse episode and season numbers
+  const episodeNumberStr = tags.get('episode')?.[0];
+  const episodeNumber = episodeNumberStr ? parseInt(episodeNumberStr, 10) : undefined;
+  
+  const seasonNumberStr = tags.get('season')?.[0];
+  const seasonNumber = seasonNumberStr ? parseInt(seasonNumberStr, 10) : undefined;
+
   return {
     id: event.id,
     title,
@@ -332,12 +356,13 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
     transcriptUrl,
     chaptersUrl,
     duration,
-    episodeNumber: undefined,
-    seasonNumber: undefined,
+    episodeNumber,
+    seasonNumber,
     publishDate,
     explicit: false,
     tags: topicTags,
     externalRefs: [],
+    value,
     eventId: event.id,
     authorPubkey: event.pubkey,
     identifier,

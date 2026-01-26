@@ -1,9 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import type { NostrEvent } from '@nostrify/nostrify';
-import type { PodcastEpisode, EpisodeSearchOptions } from '@/types/podcast';
+import type { PodcastEpisode, EpisodeSearchOptions, EpisodeValue } from '@/types/podcast';
 import { getCreatorPubkeyHex, PODCAST_KINDS } from '@/lib/podcastConfig';
 import { extractZapAmount, validateZapEvent } from '@/lib/zapUtils';
+
+/** Extended options for episode fetching with performance controls */
+interface ExtendedEpisodeSearchOptions extends EpisodeSearchOptions {
+  /** Skip fetching zap data for better performance (default: false) */
+  skipZaps?: boolean;
+  /** Cursor for pagination - fetch episodes before this timestamp */
+  until?: number;
+}
 
 /**
  * Validates if a Nostr event is a valid podcast episode (NIP-54)
@@ -86,6 +94,25 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
   // Extract chapters URL from tag
   const chaptersUrl = tags.get('chapters')?.[0];
 
+  // Extract episode number from tag
+  const episodeNumStr = tags.get('episode')?.[0];
+  const episodeNumber = episodeNumStr ? parseInt(episodeNumStr, 10) : undefined;
+
+  // Extract season number from tag
+  const seasonNumStr = tags.get('season')?.[0];
+  const seasonNumber = seasonNumStr ? parseInt(seasonNumStr, 10) : undefined;
+
+  // Extract per-episode value splits from tag
+  let value: EpisodeValue | undefined;
+  const valueStr = tags.get('value')?.[0];
+  if (valueStr) {
+    try {
+      value = JSON.parse(valueStr) as EpisodeValue;
+    } catch {
+      console.warn('Failed to parse episode value tag:', valueStr);
+    }
+  }
+
   // Content is just the show notes (plain text)
   const content = event.content || undefined;
 
@@ -100,14 +127,15 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
     videoType,
     imageUrl,
     duration,
-    episodeNumber: undefined, // Can be extended later if needed
-    seasonNumber: undefined, // Can be extended later if needed
+    episodeNumber,
+    seasonNumber,
     publishDate,
     explicit: false, // Can be extended later if needed
     tags: topicTags,
     transcriptUrl,
     chaptersUrl,
     externalRefs: [],
+    value,
     eventId: event.id,
     authorPubkey: event.pubkey,
     identifier,
@@ -118,7 +146,7 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
 /**
  * Hook to fetch all podcast episodes from the creator
  */
-export function usePodcastEpisodes(options: EpisodeSearchOptions = {}) {
+export function usePodcastEpisodes(options: ExtendedEpisodeSearchOptions = {}) {
   const { nostr } = useNostr();
 
   return useQuery({
@@ -126,10 +154,12 @@ export function usePodcastEpisodes(options: EpisodeSearchOptions = {}) {
     queryFn: async (context) => {
       const signal = AbortSignal.any([context.signal, AbortSignal.timeout(10000)]);
 
+      // Build query filter with optional cursor-based pagination
       const events = await nostr.query([{
         kinds: [PODCAST_KINDS.EPISODE],
         authors: [getCreatorPubkeyHex()],
-        limit: options.limit || 100
+        limit: options.limit || 20, // Reduced default from 100 to 20 for better performance
+        ...(options.until ? { until: options.until } : {}),
       }], { signal });
 
       // Filter and validate events
@@ -172,18 +202,19 @@ export function usePodcastEpisodes(options: EpisodeSearchOptions = {}) {
       // Convert to podcast episodes
       const validEpisodes = Array.from(episodesByTitle.values()).map(eventToPodcastEpisode);
 
-      // Fetch zap data for all episodes in a single query
+      // Fetch zap data for all episodes in a single query (optional for performance)
       const episodeIds = validEpisodes.map(ep => ep.eventId);
 
       const zapData: Map<string, { count: number; totalSats: number }> = new Map();
 
-      if (episodeIds.length > 0) {
+      // Only fetch zaps if not explicitly skipped (for performance)
+      if (!options.skipZaps && episodeIds.length > 0) {
         try {
           // Query for all zaps to these episodes
           const zapEvents = await nostr.query([{
             kinds: [9735], // Zap receipts
             '#e': episodeIds, // Episodes being zapped
-            limit: 2000 // High limit to get all zaps
+            limit: 500 // Reduced from 2000 - fetch more incrementally if needed
           }], { signal });
 
           // Process zap events and group by episode
@@ -301,19 +332,192 @@ export function usePodcastEpisode(episodeId: string) {
 
 /**
  * Hook to get the latest episode
- * Uses the same query as the Recent Episodes section to ensure cache consistency
+ * Optimized to fetch only the most recent episode for better performance
  */
 export function useLatestEpisode() {
-  const { data: episodes, ...rest } = usePodcastEpisodes({
-    limit: 50, // Use a reasonable default that covers most use cases
-    sortBy: 'date',
-    sortOrder: 'desc'
-  });
+  const { nostr } = useNostr();
 
-  return {
-    data: episodes?.[0] || null,
-    ...rest
-  };
+  return useQuery({
+    queryKey: ['podcast-episode-latest'],
+    queryFn: async (context) => {
+      const signal = AbortSignal.any([context.signal, AbortSignal.timeout(5000)]);
+
+      // Fetch only a small batch - Nostr returns newest first by default
+      const events = await nostr.query([{
+        kinds: [PODCAST_KINDS.EPISODE],
+        authors: [getCreatorPubkeyHex()],
+        limit: 5, // Fetch a few to account for possible duplicates/edits
+      }], { signal });
+
+      // Filter and validate events
+      const validEvents = events.filter(validatePodcastEpisode);
+      if (validEvents.length === 0) return null;
+
+      // Handle deduplication for the small set
+      const originalEvents = new Set<string>();
+      validEvents.forEach(event => {
+        if (isEditEvent(event)) {
+          const originalId = getOriginalEventId(event);
+          if (originalId) originalEvents.add(originalId);
+        }
+      });
+
+      // Find the latest valid episode (by pubdate, not created_at)
+      let latestEvent: NostrEvent | null = null;
+      let latestPubdate = 0;
+
+      for (const event of validEvents) {
+        if (originalEvents.has(event.id)) continue; // Skip edited originals
+
+        const pubdateStr = event.tags.find(([name]) => name === 'pubdate')?.[1];
+        const pubdate = pubdateStr 
+          ? new Date(pubdateStr).getTime() 
+          : event.created_at * 1000;
+
+        if (!latestEvent || pubdate > latestPubdate) {
+          latestEvent = event;
+          latestPubdate = pubdate;
+        }
+      }
+
+      return latestEvent ? eventToPodcastEpisode(latestEvent) : null;
+    },
+    staleTime: 60000, // 1 minute
+  });
+}
+
+/** Page size for infinite scroll */
+const EPISODES_PER_PAGE = 10;
+
+/**
+ * Hook for infinite scroll episode loading
+ * Returns episodes in pages with cursor-based pagination
+ */
+export function useInfiniteEpisodes(options: Omit<ExtendedEpisodeSearchOptions, 'until' | 'offset'> = {}) {
+  const { nostr } = useNostr();
+
+  return useInfiniteQuery({
+    queryKey: ['podcast-episodes-infinite', options],
+    initialPageParam: undefined as number | undefined,
+    queryFn: async ({ pageParam, signal: querySignal }) => {
+      const signal = AbortSignal.any([querySignal, AbortSignal.timeout(8000)]);
+      const limit = options.limit || EPISODES_PER_PAGE;
+
+      // Fetch episodes with cursor
+      const events = await nostr.query([{
+        kinds: [PODCAST_KINDS.EPISODE],
+        authors: [getCreatorPubkeyHex()],
+        limit: limit + 5, // Fetch a few extra to account for duplicates
+        ...(pageParam ? { until: pageParam } : {}),
+      }], { signal });
+
+      // Filter and validate events
+      const validEvents = events.filter(validatePodcastEpisode);
+
+      // Deduplicate episodes by identifier (d tag)
+      const episodesByIdentifier = new Map<string, NostrEvent>();
+      const originalEvents = new Set<string>();
+
+      // First pass: identify edited events and their originals
+      validEvents.forEach(event => {
+        if (isEditEvent(event)) {
+          const originalId = getOriginalEventId(event);
+          if (originalId) originalEvents.add(originalId);
+        }
+      });
+
+      // Second pass: select the best version for each identifier
+      validEvents.forEach(event => {
+        if (originalEvents.has(event.id)) return;
+
+        const identifier = event.tags.find(([name]) => name === 'd')?.[1] || event.id;
+        const existing = episodesByIdentifier.get(identifier);
+
+        if (!existing || event.created_at > existing.created_at) {
+          episodesByIdentifier.set(identifier, event);
+        }
+      });
+
+      // Convert to podcast episodes
+      const episodes = Array.from(episodesByIdentifier.values())
+        .map(eventToPodcastEpisode);
+
+      // Sort by publishDate descending
+      episodes.sort((a, b) => b.publishDate.getTime() - a.publishDate.getTime());
+
+      // Trim to requested limit
+      const trimmedEpisodes = episodes.slice(0, limit);
+
+      // Apply search filtering if specified
+      let filteredEpisodes = trimmedEpisodes;
+
+      if (options.query) {
+        const query = options.query.toLowerCase();
+        filteredEpisodes = filteredEpisodes.filter(episode =>
+          episode.title.toLowerCase().includes(query) ||
+          episode.description?.toLowerCase().includes(query) ||
+          episode.content?.toLowerCase().includes(query)
+        );
+      }
+
+      if (options.tags && options.tags.length > 0) {
+        filteredEpisodes = filteredEpisodes.filter(episode =>
+          options.tags!.some(tag => episode.tags.includes(tag))
+        );
+      }
+
+      // Fetch zap data if not skipped
+      if (!options.skipZaps && filteredEpisodes.length > 0) {
+        const episodeIds = filteredEpisodes.map(ep => ep.eventId);
+        try {
+          const zapEvents = await nostr.query([{
+            kinds: [9735],
+            '#e': episodeIds,
+            limit: 200
+          }], { signal });
+
+          const validZaps = zapEvents.filter(validateZapEvent);
+          const zapData = new Map<string, { count: number; totalSats: number }>();
+
+          validZaps.forEach(zapEvent => {
+            const episodeId = zapEvent.tags.find(([name]) => name === 'e')?.[1];
+            if (!episodeId) return;
+
+            const amount = extractZapAmount(zapEvent);
+            const existing = zapData.get(episodeId) || { count: 0, totalSats: 0 };
+            zapData.set(episodeId, {
+              count: existing.count + 1,
+              totalSats: existing.totalSats + amount
+            });
+          });
+
+          filteredEpisodes = filteredEpisodes.map(episode => ({
+            ...episode,
+            ...(zapData.get(episode.eventId) || {})
+          }));
+        } catch (error) {
+          console.warn('Failed to fetch zap data:', error);
+        }
+      }
+
+      // Determine cursor for next page
+      // Use the oldest episode's created_at timestamp minus 1 to avoid duplicates
+      const oldestEvent = events.length > 0 
+        ? events.reduce((oldest, e) => e.created_at < oldest.created_at ? e : oldest)
+        : null;
+      const nextCursor = oldestEvent && events.length >= limit 
+        ? oldestEvent.created_at - 1 
+        : undefined;
+
+      return {
+        episodes: filteredEpisodes,
+        nextCursor,
+        hasMore: !!nextCursor && filteredEpisodes.length >= limit,
+      };
+    },
+    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
+    staleTime: 60000,
+  });
 }
 
 /**

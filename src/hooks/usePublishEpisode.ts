@@ -133,11 +133,13 @@ export function usePublishEpisode() {
       }
 
       // Build tags for addressable podcast episode (kind 30054)
+      // Use provided publishDate or default to current date
+      const pubDate = episodeData.publishDate || new Date();
       const tags: Array<[string, ...string[]]> = [
         ['d', episodeIdentifier], // Addressable event identifier
         ['title', episodeData.title], // Episode title
         ['audio', audioUrl, audioType || 'audio/mpeg'], // Audio URL with media type
-        ['pubdate', new Date().toUTCString()], // RFC2822 format - set once when first published
+        ['pubdate', pubDate.toUTCString()], // RFC2822 format - can be backdated
         ['alt', `Podcast episode: ${episodeData.title}`] // NIP-31 alt tag
       ];
 
@@ -160,6 +162,16 @@ export function usePublishEpisode() {
         tags.push(['duration', episodeData.duration.toString()]);
       }
 
+      // Add episode number if provided
+      if (episodeData.episodeNumber && episodeData.episodeNumber > 0) {
+        tags.push(['episode', episodeData.episodeNumber.toString()]);
+      }
+
+      // Add season number if provided
+      if (episodeData.seasonNumber && episodeData.seasonNumber > 0) {
+        tags.push(['season', episodeData.seasonNumber.toString()]);
+      }
+
       // Add transcript URL if provided
       if (transcriptUrl) {
         tags.push(['transcript', transcriptUrl]);
@@ -176,6 +188,11 @@ export function usePublishEpisode() {
           tags.push(['t', tag.trim().toLowerCase()]);
         }
       });
+
+      // Add per-episode value splits if provided and enabled
+      if (episodeData.value?.enabled && episodeData.value.recipients.length > 0) {
+        tags.push(['value', JSON.stringify(episodeData.value)]);
+      }
 
       // Create and publish the event
       const event = await createEvent({
@@ -315,23 +332,34 @@ export function useUpdateEpisode() {
       // Use the provided episode identifier to preserve the same addressable event
       // This ensures comments and other references remain linked to the same episode
 
-      // Fetch the original episode to preserve its publication date
-      let originalPubdate: string | undefined;
-      try {
-        const originalEvents = await nostr.query([{
-          ids: [episodeId]
-        }], { signal: AbortSignal.timeout(5000) });
+      // Determine the publication date:
+      // 1. Use explicitly provided publishDate if set (allows backdating/changing)
+      // 2. Otherwise fetch original pubdate to preserve it
+      // 3. Fallback to current time if no original pubdate found
+      let pubdate: string;
+      
+      if (episodeData.publishDate) {
+        // User explicitly set a publish date
+        pubdate = episodeData.publishDate.toUTCString();
+      } else {
+        // Try to preserve the original pubdate
+        let originalPubdate: string | undefined;
+        try {
+          const originalEvents = await nostr.query([{
+            ids: [episodeId]
+          }], { signal: AbortSignal.timeout(5000) });
 
-        const originalEvent = originalEvents[0];
-        if (originalEvent) {
-          originalPubdate = originalEvent.tags.find(([name]) => name === 'pubdate')?.[1];
+          const originalEvent = originalEvents[0];
+          if (originalEvent) {
+            originalPubdate = originalEvent.tags.find(([name]) => name === 'pubdate')?.[1];
+          }
+        } catch (error) {
+          console.warn('Could not fetch original episode for pubdate preservation:', error);
         }
-      } catch (error) {
-        console.warn('Could not fetch original episode for pubdate preservation:', error);
-      }
 
-      // Fallback to current time if no original pubdate found (for episodes created before this feature)
-      const pubdate = originalPubdate || new Date().toUTCString();
+        // Fallback to current time if no original pubdate found (for episodes created before this feature)
+        pubdate = originalPubdate || new Date().toUTCString();
+      }
 
       // Apply OP3 prefix to URLs if enabled in podcast settings
       const useOP3 = podcastConfig.podcast.useOP3 || false;
@@ -377,6 +405,16 @@ export function useUpdateEpisode() {
         tags.push(['duration', episodeData.duration.toString()]);
       }
 
+      // Add episode number if provided
+      if (episodeData.episodeNumber && episodeData.episodeNumber > 0) {
+        tags.push(['episode', episodeData.episodeNumber.toString()]);
+      }
+
+      // Add season number if provided
+      if (episodeData.seasonNumber && episodeData.seasonNumber > 0) {
+        tags.push(['season', episodeData.seasonNumber.toString()]);
+      }
+
       // Add transcript URL if provided
       if (transcriptUrl) {
         tags.push(['transcript', transcriptUrl]);
@@ -393,6 +431,11 @@ export function useUpdateEpisode() {
           tags.push(['t', tag.trim().toLowerCase()]);
         }
       });
+
+      // Add per-episode value splits if provided and enabled
+      if (episodeData.value?.enabled && episodeData.value.recipients.length > 0) {
+        tags.push(['value', JSON.stringify(episodeData.value)]);
+      }
 
       // Create the updated event
       const event = await createEvent({

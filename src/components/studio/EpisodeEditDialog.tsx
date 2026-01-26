@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, Upload, Save, Loader2 } from 'lucide-react';
+import { X, Upload, Save, Loader2, CalendarIcon, CheckCircle, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Form,
   FormControl,
@@ -27,9 +30,12 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useUpdateEpisode } from '@/hooks/usePublishEpisode';
+import { usePodcastConfig } from '@/hooks/usePodcastConfig';
 import { useToast } from '@/hooks/useToast';
 import { getAudioDuration, formatDurationHuman } from '@/lib/audioDuration';
-import type { PodcastEpisode, EpisodeFormData } from '@/types/podcast';
+import { cn } from '@/lib/utils';
+import { ValueRecipientsEditor } from '@/components/podcast/ValueRecipientsEditor';
+import type { PodcastEpisode, EpisodeFormData, EpisodeValue } from '@/types/podcast';
 
 // Schema for episode editing (similar to publish but allows empty audio URLs for existing episodes)
 const episodeEditSchema = z.object({
@@ -46,6 +52,7 @@ const episodeEditSchema = z.object({
   seasonNumber: z.number().positive().optional(),
   explicit: z.boolean().default(false),
   tags: z.array(z.string()).default([]),
+  publishDate: z.date().optional(),
 });
 
 type EpisodeEditFormValues = z.infer<typeof episodeEditSchema>;
@@ -65,7 +72,8 @@ export function EpisodeEditDialog({
 }: EpisodeEditDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { mutateAsync: updateEpisode, isPending } = useUpdateEpisode();
+  const { mutateAsync: updateEpisode } = useUpdateEpisode();
+  const podcastConfig = usePodcastConfig();
 
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -74,6 +82,14 @@ export function EpisodeEditDialog({
   const [chaptersFile, setChaptersFile] = useState<File | null>(null);
   const [currentTag, setCurrentTag] = useState('');
   const [isDetectingDuration, setIsDetectingDuration] = useState(false);
+
+  const [updatingState, setUpdatingState] = useState<'idle' | 'uploading' | 'publishing' | 'success' | 'error'>('idle');
+  const [updateProgress, setUpdateProgress] = useState<string>('');
+
+  // Episode-level value splits state
+  const [episodeValue, setEpisodeValue] = useState<EpisodeValue>(
+    episode.value || { enabled: false, recipients: [] }
+  );
 
   const form = useForm<EpisodeEditFormValues>({
     resolver: zodResolver(episodeEditSchema),
@@ -91,6 +107,7 @@ export function EpisodeEditDialog({
       seasonNumber: episode.seasonNumber,
       explicit: episode.explicit || false,
       tags: episode.tags || [],
+      publishDate: episode.publishDate,
     },
   });
 
@@ -113,6 +130,7 @@ export function EpisodeEditDialog({
       seasonNumber: episode.seasonNumber,
       explicit: episode.explicit || false,
       tags: episode.tags || [],
+      publishDate: episode.publishDate,
     });
     setAudioFile(null);
     setVideoFile(null);
@@ -121,6 +139,9 @@ export function EpisodeEditDialog({
     setChaptersFile(null);
     setCurrentTag('');
     setIsDetectingDuration(false);
+    setUpdatingState('idle');
+    setUpdateProgress('');
+    setEpisodeValue(episode.value || { enabled: false, recipients: [] });
   }, [episode, reset]);
 
   const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -312,8 +333,24 @@ export function EpisodeEditDialog({
   };
 
   const onSubmit = async (data: EpisodeEditFormValues) => {
+    // Prevent double submissions
+    if (updatingState !== 'idle') {
+      return;
+    }
+
     try {
       console.log('Starting episode update...');
+
+      // Start the updating process - show uploading state if we have files
+      const hasFilesToUpload = audioFile || videoFile || imageFile || transcriptFile || chaptersFile;
+      if (hasFilesToUpload) {
+        setUpdatingState('uploading');
+        const filesToUpload = [audioFile?.name, videoFile?.name, imageFile?.name, transcriptFile?.name, chaptersFile?.name].filter(Boolean).join(', ');
+        setUpdateProgress(`Uploading ${filesToUpload}...`);
+      } else {
+        setUpdatingState('publishing');
+        setUpdateProgress('Updating episode...');
+      }
 
       const episodeData: EpisodeFormData = {
         ...data,
@@ -331,6 +368,10 @@ export function EpisodeEditDialog({
         chaptersUrl: data.chaptersUrl || undefined,
         // Keep existing external references
         externalRefs: episode.externalRefs,
+        // Include publish date (only if changed from original)
+        publishDate: data.publishDate,
+        // Include per-episode value splits (only if enabled with recipients)
+        value: episodeValue.enabled && episodeValue.recipients.length > 0 ? episodeValue : undefined,
       };
 
       console.log('Calling updateEpisode with:', { episodeId: episode.eventId, episodeIdentifier: episode.identifier, episodeData });
@@ -343,6 +384,10 @@ export function EpisodeEditDialog({
 
       console.log('UpdateEpisode completed successfully');
 
+      // Success state
+      setUpdatingState('success');
+      setUpdateProgress('Episode updated successfully!');
+
       // Invalidate episode queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['episode'] });
       queryClient.invalidateQueries({ queryKey: ['podcast-episodes'] });
@@ -353,17 +398,42 @@ export function EpisodeEditDialog({
         description: 'Your episode has been updated successfully.',
       });
 
-      // Close dialog and trigger success callback
-      onOpenChange(false);
-      onSuccess();
+      // Wait a moment to show success state, then close
+      setTimeout(() => {
+        setUpdatingState('idle');
+        setUpdateProgress('');
+        onOpenChange(false);
+        onSuccess();
+      }, 1500);
 
     } catch (error) {
       console.error('Error in onSubmit:', error);
+      
+      // Extract error message
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      
+      // Determine if this was an upload error or publish error
+      const isUploadError = errorMessage.toLowerCase().includes('upload') || 
+                           errorMessage.toLowerCase().includes('blossom') ||
+                           errorMessage.toLowerCase().includes('file');
+      
+      setUpdatingState('error');
+      setUpdateProgress(isUploadError 
+        ? `Upload failed: ${errorMessage}` 
+        : `Update failed: ${errorMessage}`
+      );
+      
       toast({
-        title: 'Failed to update episode',
-        description: error instanceof Error ? error.message : 'An error occurred',
+        title: isUploadError ? 'Upload failed' : 'Failed to update episode',
+        description: errorMessage,
         variant: 'destructive',
       });
+
+      // Keep error visible longer so user can read it
+      setTimeout(() => {
+        setUpdatingState('idle');
+        setUpdateProgress('');
+      }, 5000);
     }
   };
 
@@ -449,15 +519,26 @@ export function EpisodeEditDialog({
                         id="audio-upload-edit"
                       />
                       <label htmlFor="audio-upload-edit">
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-gray-400 transition-colors">
-                          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-500">
+                        <div className={cn(
+                          "border-2 border-dashed rounded-lg p-3 sm:p-4 text-center cursor-pointer transition-colors",
+                          audioFile 
+                            ? "border-blue-400 bg-blue-50 dark:bg-blue-950 hover:border-blue-500" 
+                            : "border-gray-300 hover:border-gray-400"
+                        )}>
+                          <Upload className={cn(
+                            "w-6 h-6 mx-auto mb-2",
+                            audioFile ? "text-blue-500" : "text-gray-400"
+                          )} />
+                          <p className="text-sm">
                             {audioFile ? (
-                              <span className="text-green-600 font-medium">
-                                ✓ {audioFile.name}
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                {audioFile.name}
+                                <span className="block text-xs mt-1 text-muted-foreground">
+                                  Ready to upload on save
+                                </span>
                               </span>
                             ) : (
-                              'Click to replace audio file'
+                              <span className="text-gray-500">Click to replace audio file</span>
                             )}
                           </p>
                         </div>
@@ -513,15 +594,26 @@ export function EpisodeEditDialog({
                         id="image-upload-edit"
                       />
                       <label htmlFor="image-upload-edit">
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-gray-400 transition-colors">
-                          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-500">
+                        <div className={cn(
+                          "border-2 border-dashed rounded-lg p-3 sm:p-4 text-center cursor-pointer transition-colors",
+                          imageFile 
+                            ? "border-blue-400 bg-blue-50 dark:bg-blue-950 hover:border-blue-500" 
+                            : "border-gray-300 hover:border-gray-400"
+                        )}>
+                          <Upload className={cn(
+                            "w-6 h-6 mx-auto mb-2",
+                            imageFile ? "text-blue-500" : "text-gray-400"
+                          )} />
+                          <p className="text-sm">
                             {imageFile ? (
-                              <span className="text-green-600 font-medium">
-                                ✓ {imageFile.name}
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                {imageFile.name}
+                                <span className="block text-xs mt-1 text-muted-foreground">
+                                  Ready to upload on save
+                                </span>
                               </span>
                             ) : (
-                              'Click to replace image'
+                              <span className="text-gray-500">Click to replace image</span>
                             )}
                           </p>
                         </div>
@@ -583,15 +675,26 @@ export function EpisodeEditDialog({
                         id="video-upload-edit"
                       />
                       <label htmlFor="video-upload-edit">
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-gray-400 transition-colors">
-                          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-500">
+                        <div className={cn(
+                          "border-2 border-dashed rounded-lg p-3 sm:p-4 text-center cursor-pointer transition-colors",
+                          videoFile 
+                            ? "border-blue-400 bg-blue-50 dark:bg-blue-950 hover:border-blue-500" 
+                            : "border-gray-300 hover:border-gray-400"
+                        )}>
+                          <Upload className={cn(
+                            "w-6 h-6 mx-auto mb-2",
+                            videoFile ? "text-blue-500" : "text-gray-400"
+                          )} />
+                          <p className="text-sm">
                             {videoFile ? (
-                              <span className="text-green-600 font-medium">
-                                ✓ {videoFile.name}
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                {videoFile.name}
+                                <span className="block text-xs mt-1 text-muted-foreground">
+                                  Ready to upload on save
+                                </span>
                               </span>
                             ) : (
-                              'Click to upload video'
+                              <span className="text-gray-500">Click to upload video</span>
                             )}
                           </p>
                         </div>
@@ -646,15 +749,26 @@ export function EpisodeEditDialog({
                         id="transcript-upload-edit"
                       />
                       <label htmlFor="transcript-upload-edit">
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-gray-400 transition-colors">
-                          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-500">
+                        <div className={cn(
+                          "border-2 border-dashed rounded-lg p-3 sm:p-4 text-center cursor-pointer transition-colors",
+                          transcriptFile 
+                            ? "border-blue-400 bg-blue-50 dark:bg-blue-950 hover:border-blue-500" 
+                            : "border-gray-300 hover:border-gray-400"
+                        )}>
+                          <Upload className={cn(
+                            "w-6 h-6 mx-auto mb-2",
+                            transcriptFile ? "text-blue-500" : "text-gray-400"
+                          )} />
+                          <p className="text-sm">
                             {transcriptFile ? (
-                              <span className="text-green-600 font-medium">
-                                ✓ {transcriptFile.name}
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                {transcriptFile.name}
+                                <span className="block text-xs mt-1 text-muted-foreground">
+                                  Ready to upload on save
+                                </span>
                               </span>
                             ) : (
-                              'TXT, HTML, VTT, JSON, or SRT'
+                              <span className="text-gray-500">TXT, HTML, VTT, JSON, or SRT</span>
                             )}
                           </p>
                         </div>
@@ -709,15 +823,26 @@ export function EpisodeEditDialog({
                         id="chapters-upload-edit"
                       />
                       <label htmlFor="chapters-upload-edit">
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-gray-400 transition-colors">
-                          <Upload className="w-6 h-6 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-500">
+                        <div className={cn(
+                          "border-2 border-dashed rounded-lg p-3 sm:p-4 text-center cursor-pointer transition-colors",
+                          chaptersFile 
+                            ? "border-blue-400 bg-blue-50 dark:bg-blue-950 hover:border-blue-500" 
+                            : "border-gray-300 hover:border-gray-400"
+                        )}>
+                          <Upload className={cn(
+                            "w-6 h-6 mx-auto mb-2",
+                            chaptersFile ? "text-blue-500" : "text-gray-400"
+                          )} />
+                          <p className="text-sm">
                             {chaptersFile ? (
-                              <span className="text-green-600 font-medium">
-                                ✓ {chaptersFile.name}
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                {chaptersFile.name}
+                                <span className="block text-xs mt-1 text-muted-foreground">
+                                  Ready to upload on save
+                                </span>
                               </span>
                             ) : (
-                              'JSON chapters file'
+                              <span className="text-gray-500">JSON chapters file</span>
                             )}
                           </p>
                         </div>
@@ -757,7 +882,7 @@ export function EpisodeEditDialog({
               </div>
 
               {/* Episode Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <FormField
                   control={form.control}
                   name="episodeNumber"
@@ -791,6 +916,51 @@ export function EpisodeEditDialog({
                           onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="publishDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Publish Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Original date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date > new Date()
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <p className="text-xs text-muted-foreground">
+                        Change episode date
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -859,6 +1029,18 @@ export function EpisodeEditDialog({
                 )}
               </div>
 
+              {/* Per-Episode Value Splits */}
+              <ValueRecipientsEditor
+                value={episodeValue}
+                onChange={setEpisodeValue}
+                podcastDefaults={podcastConfig.podcast?.value ? {
+                  amount: podcastConfig.podcast.value.amount,
+                  currency: podcastConfig.podcast.value.currency,
+                  recipients: podcastConfig.podcast.value.recipients,
+                } : undefined}
+                disabled={updatingState === 'uploading' || updatingState === 'publishing'}
+              />
+
               {/* Explicit Content */}
               <FormField
                 control={form.control}
@@ -881,24 +1063,82 @@ export function EpisodeEditDialog({
                 )}
               />
 
+              {/* Progress Indicator */}
+              {updatingState !== 'idle' && (
+                <div className={cn(
+                  "rounded-lg p-4 border",
+                  updatingState === 'error' 
+                    ? "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800" 
+                    : "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+                )}>
+                  <div className="flex items-start space-x-3">
+                    {updatingState === 'uploading' || updatingState === 'publishing' ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-600 flex-shrink-0 mt-0.5" />
+                    ) : updatingState === 'success' ? (
+                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    ) : updatingState === 'error' ? (
+                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    ) : null}
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-sm font-medium break-words",
+                        updatingState === 'success' && "text-green-800 dark:text-green-400",
+                        updatingState === 'error' && "text-red-800 dark:text-red-400",
+                        (updatingState === 'uploading' || updatingState === 'publishing') && "text-gray-800 dark:text-gray-200"
+                      )}>
+                        {updateProgress}
+                      </p>
+                      {updatingState === 'uploading' && (
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          This may take a moment for larger files...
+                        </p>
+                      )}
+                      {updatingState === 'error' && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                          Check your Blossom server settings or try a different media server.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Form Actions */}
               <div className="flex flex-col-reverse sm:flex-row justify-end space-y-reverse space-y-2 sm:space-y-0 sm:space-x-3 pt-4 sm:pt-6 border-t">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => onOpenChange(false)}
-                  disabled={isPending}
+                  disabled={updatingState === 'uploading' || updatingState === 'publishing'}
                   className="w-full sm:w-auto"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
-                  {isPending ? (
+                <Button 
+                  type="submit" 
+                  disabled={updatingState === 'uploading' || updatingState === 'publishing' || updatingState === 'success'} 
+                  className="w-full sm:w-auto"
+                >
+                  {updatingState === 'uploading' && (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  )}
+                  {updatingState === 'publishing' && (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Updating...
                     </>
-                  ) : (
+                  )}
+                  {updatingState === 'success' && (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Updated!
+                    </>
+                  )}
+                  {(updatingState === 'idle' || updatingState === 'error') && (
                     <>
                       <Save className="w-4 h-4 mr-2" />
                       Update Episode

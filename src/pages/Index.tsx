@@ -181,6 +181,7 @@ const Index = () => {
                 showSearch={false}
                 _showPlayer={false}
                 limit={3}
+                infiniteScroll={false}
                 onPlayEpisode={(episode) => {
                   playEpisode(episode);
                 }}
