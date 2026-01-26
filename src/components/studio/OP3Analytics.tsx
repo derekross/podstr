@@ -77,14 +77,15 @@ export function OP3Analytics() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>OP3 API Token Missing</AlertTitle>
               <AlertDescription>
-                Add your OP3 API token to your environment variables:
+                Add your OP3 API token as an environment variable:
                 <ul className="list-disc list-inside mt-2 space-y-1">
                   <li>
                     <code className="text-xs bg-muted px-1 py-0.5 rounded">VITE_OP3_API_TOKEN</code> - Your OP3 API token
                   </li>
                 </ul>
                 <p className="mt-2 text-sm">
-                  OP3.dev uses your existing <code className="text-xs bg-muted px-1 py-0.5 rounded">VITE_PODCAST_GUID</code> as the show UUID.
+                  Set this in your deployment platform (Vercel, Netlify, etc.) or create a local <code className="text-xs bg-muted px-1 py-0.5 rounded">.env</code> file.
+                  OP3.dev uses your podcast GUID from <code className="text-xs bg-muted px-1 py-0.5 rounded">src/lib/podcastConfig.ts</code> as the show UUID.
                 </p>
                 <a
                   href="https://op3.dev"

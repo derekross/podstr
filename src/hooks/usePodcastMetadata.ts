@@ -18,7 +18,7 @@ interface PodcastMetadata {
   value: {
     amount: number;
     currency: string;
-    recipients?: Array<{
+    recipients: Array<{
       name: string;
       type: 'node' | 'lnaddress';
       address: string;
@@ -87,7 +87,7 @@ export function usePodcastMetadata() {
         value: {
           amount: PODCAST_CONFIG.podcast.value.amount,
           currency: PODCAST_CONFIG.podcast.value.currency,
-          recipients: PODCAST_CONFIG.podcast.value.recipients || []
+          recipients: PODCAST_CONFIG.podcast.value.recipients
         },
         type: PODCAST_CONFIG.podcast.type,
         complete: PODCAST_CONFIG.podcast.complete,

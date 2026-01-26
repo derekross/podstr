@@ -1,118 +1,21 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { config } from 'dotenv';
 import { nip19 } from 'nostr-tools';
 import { NRelay1, NostrEvent } from '@nostrify/nostrify';
-// import { generateRSSFeed } from '../src/lib/rssGenerator.js'; // Can't import due to import.meta.env issues
 import type { PodcastEpisode, PodcastTrailer } from '../src/types/podcast.js';
+import { PODCAST_CONFIG, PodcastConfig } from '../src/lib/podcastConfig.js';
 
 // Import naddr encoding function
 import { encodeEpisodeAsNaddr } from '../src/lib/nip19Utils.js';
 // Import OP3 utilities
 import { addOP3Prefix } from '../src/lib/op3Utils.js';
 
-// Copied from podcastConfig.ts to avoid import.meta.env issues
+// Podcast kinds used by PODSTR
 const PODCAST_KINDS = {
   EPISODE: 30054, // Addressable Podcast episodes (editable, replaceable)
   TRAILER: 30055, // Addressable Podcast trailers (editable, replaceable)
   PODCAST_METADATA: 30078, // Podcast metadata (addressable event)
 } as const;
-
-// Load environment variables
-config();
-
-/**
- * Create a Node.js compatible config that reads from actual env vars
- * This replicates the PODCAST_CONFIG structure but uses process.env instead of import.meta.env
- */
-function createNodejsConfig() {
-  const creatorNpub = process.env.VITE_CREATOR_NPUB || "npub1dv9vvyqwurfwh2fpe30nnsn94447jflalr4drlkqjj0swkhfwpxslca89d";
-
-  // Parse recipients safely
-  let recipients = [];
-  try {
-    if (process.env.VITE_PODCAST_VALUE_RECIPIENTS) {
-      recipients = JSON.parse(process.env.VITE_PODCAST_VALUE_RECIPIENTS);
-    } else {
-      // Default recipients if no env var
-      recipients = [
-        {
-          name: "Podcast Host",
-          type: "node",
-          address: "030a58b8653d32b99200a2334cfe913e51dc7d155aa0116c176657a4f1722677a3",
-          split: 80,
-          fee: false
-        },
-        {
-          name: "Producer",
-          type: "lightning-address",
-          address: "producer@getalby.com",
-          split: 15,
-          customKey: "podcast",
-          customValue: "producer-fee"
-        },
-        {
-          name: "Platform Fee",
-          type: "node",
-          address: "021f2f8e1e46a48d0a9f1b7e4e8b5c8d5e4f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6",
-          split: 5,
-          fee: true
-        }
-      ];
-    }
-  } catch {
-    console.warn('Failed to parse VITE_PODCAST_VALUE_RECIPIENTS, using defaults');
-    recipients = [];
-  }
-
-  return {
-    creatorNpub,
-    podcast: {
-      title: process.env.VITE_PODCAST_TITLE || "PODSTR Podcast",
-      description: process.env.VITE_PODCAST_DESCRIPTION || "A Nostr-powered podcast exploring decentralized conversations",
-      author: process.env.VITE_PODCAST_AUTHOR || "PODSTR Creator",
-      email: process.env.VITE_PODCAST_EMAIL || "creator@podstr.example",
-      image: process.env.VITE_PODCAST_IMAGE || "https://image.nostr.build/59bb1cffa12d11cb7cb6905283ecc75b259733e9ecf44a6053b3805d1f01bb7a.jpg",
-      language: process.env.VITE_PODCAST_LANGUAGE || "en-us",
-      categories: process.env.VITE_PODCAST_CATEGORIES ?
-        process.env.VITE_PODCAST_CATEGORIES.split(',').map(s => s.trim()).filter(s => s.length > 0) :
-        ["Technology", "Social Networking", "Society & Culture"],
-      explicit: process.env.VITE_PODCAST_EXPLICIT === "true",
-      website: process.env.VITE_PODCAST_WEBSITE || "https://podstr.example",
-      copyright: process.env.VITE_PODCAST_COPYRIGHT || "© 2025 PODSTR Creator",
-      funding: process.env.VITE_PODCAST_FUNDING ?
-        process.env.VITE_PODCAST_FUNDING.split(',').map(s => s.trim()).filter(s => s.length > 0) :
-        [],
-      locked: process.env.VITE_PODCAST_LOCKED === "true",
-      value: {
-        amount: parseInt(process.env.VITE_PODCAST_VALUE_AMOUNT || "1000", 10),
-        currency: process.env.VITE_PODCAST_VALUE_CURRENCY || "sats",
-        recipients
-      },
-      type: (process.env.VITE_PODCAST_TYPE as "episodic" | "serial") || "episodic",
-      complete: process.env.VITE_PODCAST_COMPLETE === "true",
-      // Podcasting 2.0 fields
-      guid: process.env.VITE_PODCAST_GUID || creatorNpub,
-      medium: (process.env.VITE_PODCAST_MEDIUM as "podcast" | "music" | "video" | "film" | "audiobook" | "newsletter" | "blog") || "podcast",
-      publisher: process.env.VITE_PODCAST_PUBLISHER || process.env.VITE_PODCAST_AUTHOR || "PODSTR Creator",
-      location: process.env.VITE_PODCAST_LOCATION_NAME ? {
-        name: process.env.VITE_PODCAST_LOCATION_NAME,
-        geo: process.env.VITE_PODCAST_LOCATION_GEO || undefined,
-        osm: process.env.VITE_PODCAST_LOCATION_OSM || undefined
-      } : undefined,
-      person: process.env.VITE_PODCAST_PERSON ?
-        JSON.parse(process.env.VITE_PODCAST_PERSON) :
-        [{ name: process.env.VITE_PODCAST_AUTHOR || "PODSTR Creator", role: "host", group: "cast" }],
-      license: {
-        identifier: process.env.VITE_PODCAST_LICENSE_IDENTIFIER || "CC BY 4.0",
-        url: process.env.VITE_PODCAST_LICENSE_URL || "https://creativecommons.org/licenses/by/4.0/"
-      }
-    },
-    rss: {
-      ttl: parseInt(process.env.VITE_RSS_TTL || "60", 10)
-    }
-  };
-}
 
 /**
  * Node-specific function to get creator pubkey in hex format
@@ -159,9 +62,9 @@ function formatDurationForRSS(seconds: number): string {
 }
 
 /**
- * Node-compatible RSS feed generation (simplified version)
+ * Node-compatible RSS feed generation
  */
-function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[], podcastConfig: Record<string, unknown>): string {
+function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[], podcastConfig: PodcastConfig): string {
   const baseUrl = podcastConfig.podcast.website || 'https://podstr.example';
   const useOP3 = podcastConfig.podcast.useOP3 || false;
 
@@ -488,7 +391,7 @@ async function fetchPodcastMetadataMultiRelay(relays: Array<{url: string, relay:
     return metadata;
   } else {
     console.log('⚠️ No podcast metadata found from any relay');
-    console.log('📄 Using podcast metadata from .env file');
+    console.log('📄 Using podcast metadata from config file');
     return null;
   }
 }
@@ -642,111 +545,12 @@ async function fetchPodcastTrailersMultiRelay(relays: Array<{url: string, relay:
   return finalTrailers.sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
 }
 
-/**
- * Fetch podcast metadata from single Nostr relay (legacy function)
- */
-async function _fetchPodcastMetadata(relay: NRelay1, creatorPubkeyHex: string) {
-  try {
-    console.log('📡 Fetching podcast metadata from Nostr...');
-
-    // Add timeout to prevent hanging
-    const events = await Promise.race([
-      relay.query([{
-        kinds: [PODCAST_KINDS.PODCAST_METADATA],
-        authors: [creatorPubkeyHex],
-        '#d': ['podcast-metadata'],
-        limit: 5
-      }]),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Metadata query timeout')), 5000)
-      )
-    ]) as NostrEvent[];
-
-    if (events.length > 0) {
-      // Get the most recent event
-      const latestEvent = events.reduce((latest, current) =>
-        current.created_at > latest.created_at ? current : latest
-      );
-
-      const metadata = JSON.parse(latestEvent.content);
-      console.log(`✅ Found podcast metadata from Nostr (updated: ${new Date(latestEvent.created_at * 1000).toISOString()})`);
-      return metadata;
-    }
-  } catch (error) {
-    console.warn('⚠️  Failed to fetch podcast metadata from Nostr:', error);
-  }
-
-  return null;
-}
-
-/**
- * Fetch podcast episodes from Nostr
- */
-async function _fetchPodcastEpisodes(relay: NRelay1, creatorPubkeyHex: string): Promise<PodcastEpisode[]> {
-  try {
-    console.log('📡 Fetching podcast episodes from Nostr...');
-
-    // Add timeout to prevent hanging
-    const events = await Promise.race([
-      relay.query([{
-        kinds: [PODCAST_KINDS.EPISODE],
-        authors: [creatorPubkeyHex],
-        limit: 100
-      }]),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Episodes query timeout')), 5000)
-      )
-    ]) as NostrEvent[];
-
-    // Filter and validate events
-    const validEvents = events.filter(event => validatePodcastEpisode(event, creatorPubkeyHex));
-
-    // Deduplicate episodes by title - keep only the latest version
-    const episodesByTitle = new Map<string, NostrEvent>();
-    const originalEvents = new Set<string>();
-
-    // Handle edit events
-    validEvents.forEach(event => {
-      const editTag = event.tags.find(([name]) => name === 'edit');
-      if (editTag && editTag[1]) {
-        originalEvents.add(editTag[1]);
-      }
-    });
-
-    // Select the best version for each title
-    validEvents.forEach(event => {
-      const title = event.tags.find(([name]) => name === 'title')?.[1] || '';
-      if (!title) return;
-
-      // Skip if this is an original event that has been edited
-      if (originalEvents.has(event.id)) return;
-
-      const existing = episodesByTitle.get(title);
-      if (!existing || event.created_at > existing.created_at) {
-        episodesByTitle.set(title, event);
-      }
-    });
-
-    // Convert to podcast episodes and sort by date (newest first)
-    const episodes = Array.from(episodesByTitle.values())
-      .map(eventToPodcastEpisode)
-      .sort((a, b) => b.publishDate.getTime() - a.publishDate.getTime());
-
-    console.log(`✅ Found ${episodes.length} episodes from Nostr`);
-    return episodes;
-
-  } catch (error) {
-    console.warn('⚠️  Failed to fetch episodes from Nostr:', error);
-    return [];
-  }
-}
-
 async function buildRSS() {
   try {
     console.log('🏗️  Building RSS feed for production...');
 
-    // Get base config from environment variables
-    const baseConfig = createNodejsConfig();
+    // Use the imported config directly
+    const baseConfig = PODCAST_CONFIG;
     const creatorPubkeyHex = getCreatorPubkeyHex(baseConfig.creatorNpub);
 
     console.log(`👤 Creator: ${baseConfig.creatorNpub}`);
@@ -763,10 +567,10 @@ async function buildRSS() {
     console.log(`🔌 Connecting to ${relayUrls.length} relays for better data coverage`);
     const relays = relayUrls.map(url => ({ url, relay: new NRelay1(url) }));
 
-    let finalConfig = baseConfig;
+    let finalConfig: PodcastConfig = baseConfig;
     let episodes: PodcastEpisode[] = [];
     let trailers: PodcastTrailer[] = [];
-    let nostrMetadata: Record<string, unknown> | null = null;
+    let nostrMetadata: Partial<PodcastConfig['podcast']> | null = null;
 
     try {
       // Fetch podcast metadata from multiple relays
@@ -783,7 +587,7 @@ async function buildRSS() {
         };
         console.log('🎯 Using podcast metadata from Nostr');
       } else {
-        console.log('📄 Using podcast metadata from .env file');
+        console.log('📄 Using podcast metadata from config file');
       }
 
       // Fetch episodes from multiple relays
@@ -833,7 +637,7 @@ async function buildRSS() {
       environment: 'production',
       accessible: true,
       dataSource: {
-        metadata: nostrMetadata ? 'nostr' : 'env',
+        metadata: nostrMetadata ? 'nostr' : 'config',
         episodes: episodes.length > 0 ? 'nostr' : 'none',
         trailers: trailers.length > 0 ? 'nostr' : 'none',
         relays: relayUrls
