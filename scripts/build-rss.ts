@@ -4,6 +4,7 @@ import { nip19 } from 'nostr-tools';
 import { NRelay1, NostrEvent } from '@nostrify/nostrify';
 import type { PodcastEpisode, PodcastTrailer } from '../src/types/podcast.js';
 import { PODCAST_CONFIG, PodcastConfig } from '../src/lib/podcastConfig.js';
+import { parseChaptersFromContent, generateChaptersJSON } from '../src/lib/parseChapters.js';
 
 // Import naddr encoding function
 import { encodeEpisodeAsNaddr } from '../src/lib/nip19Utils.js';
@@ -608,15 +609,34 @@ async function buildRSS() {
       console.log('🔌 Relay queries completed');
     }
 
+    // Auto-generate chapters JSON for episodes without a chaptersUrl
+    const baseUrl = finalConfig.podcast.website || 'https://podstr.example';
+    const distDir = path.resolve('dist');
+    const chaptersDir = path.join(distDir, 'chapters');
+    await fs.mkdir(chaptersDir, { recursive: true });
+
+    let chaptersGenerated = 0;
+    for (const episode of episodes) {
+      if (episode.chaptersUrl) continue; // already has uploaded chapters
+      if (!episode.content) continue;
+
+      const chapters = parseChaptersFromContent(episode.content);
+      if (chapters.length > 0) {
+        const filename = `${episode.identifier}.json`;
+        await fs.writeFile(path.join(chaptersDir, filename), generateChaptersJSON(chapters), 'utf-8');
+        episode.chaptersUrl = `${baseUrl}/chapters/${filename}`;
+        chaptersGenerated++;
+      }
+    }
+    if (chaptersGenerated > 0) {
+      console.log(`📑 Auto-generated chapters for ${chaptersGenerated} episodes`);
+    }
+
     console.log(`📊 Generating RSS with ${episodes.length} episodes and ${trailers.length} trailers`);
     console.log(`🔍 OP3 Analytics: ${finalConfig.podcast.useOP3 ? 'ENABLED' : 'DISABLED'}`);
 
     // Generate RSS feed with fetched data
     const rssContent = generateRSSFeed(episodes, trailers, finalConfig);
-
-    // Ensure dist directory exists
-    const distDir = path.resolve('dist');
-    await fs.mkdir(distDir, { recursive: true });
 
     // Write RSS file
     const rssPath = path.join(distDir, 'rss.xml');
