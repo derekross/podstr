@@ -26,10 +26,11 @@ export function useNostrPublish(): UseMutationResult<NostrEvent> {
           created_at: t.created_at ?? Math.floor(Date.now() / 1000),
         });
 
-        // Use longer timeout for publishing (15 seconds) to allow relays to respond
-        // Even if some relays fail, as long as one succeeds, the event is published
+        // Use generous timeout for publishing to allow relays to respond.
+        // After large file uploads, relay connections may need time to establish.
+        // Even if some relays fail, as long as one succeeds, the event is published.
         try {
-          await nostr.event(event, { signal: AbortSignal.timeout(15000) });
+          await nostr.event(event, { signal: AbortSignal.timeout(60_000) });
         } catch (error) {
           // Log error but don't fail - if any relay accepted it, we're good
           console.warn("Some relays failed to accept the event, but it may have been published:", error);

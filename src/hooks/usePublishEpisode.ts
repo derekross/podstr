@@ -347,7 +347,7 @@ export function useUpdateEpisode() {
         try {
           const originalEvents = await nostr.query([{
             ids: [episodeId]
-          }], { signal: AbortSignal.timeout(5000) });
+          }], { signal: AbortSignal.timeout(15_000) });
 
           const originalEvent = originalEvents[0];
           if (originalEvent) {
