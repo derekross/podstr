@@ -32,6 +32,8 @@ A `kind 30054` event represents a podcast episode. These are addressable events 
 - `image` - Episode artwork URL
 - `duration` - Episode duration in seconds (integer)
 - `t` - Topic tags for categorization (multiple tags allowed)
+- `transcript` - URL to a transcript file (Podcasting 2.0 `<podcast:transcript>`)
+- `chapters` - URL to a JSON chapters file (Podcasting 2.0 `application/json+chapters`)
 - `edit` - Reference to original event ID when updating an episode (for edit history)
 
 #### Content Field
