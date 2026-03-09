@@ -159,6 +159,22 @@ export function useZaps(
         return;
       }
 
+      // Validate zap endpoint is HTTPS to prevent SSRF via malicious profile metadata
+      try {
+        const endpointUrl = new URL(zapEndpoint);
+        if (endpointUrl.protocol !== 'https:') {
+          throw new Error('Zap endpoint must use HTTPS');
+        }
+      } catch {
+        toast({
+          title: 'Invalid zap endpoint',
+          description: 'The author\'s zap endpoint is not a valid HTTPS URL.',
+          variant: 'destructive',
+        });
+        setIsZapping(false);
+        return;
+      }
+
       const zapAmount = amount * 1000; // convert to millisats
 
       // Create zap request using EventZap type - pass the full event object

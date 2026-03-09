@@ -12,6 +12,7 @@ import { usePodcastStats } from '@/hooks/usePodcastEpisodes';
 import { usePodcastTrailers } from '@/hooks/usePodcastTrailers';
 import { usePodcastConfig } from '@/hooks/usePodcastConfig';
 import { getCreatorPubkeyHex } from '@/lib/podcastConfig';
+import { isSafeUrl } from '@/lib/utils';
 
 const About = () => {
   const { data: stats } = usePodcastStats();
@@ -87,7 +88,7 @@ const About = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-3 pt-2">
-                      {creator?.metadata?.website && (
+                      {creator?.metadata?.website && isSafeUrl(creator.metadata.website) && (
                         <Button variant="outline" size="sm" asChild>
                           <a href={creator.metadata.website} target="_blank" rel="noopener noreferrer">
                             <Globe className="w-4 h-4 mr-2" />
@@ -148,7 +149,7 @@ const About = () => {
                             <source src={featuredTrailer.url} type={featuredTrailer.type} />
                             <p className="text-white p-4">
                               Your browser doesn't support HTML5 video. 
-                              <a href={featuredTrailer.url} className="text-blue-300 underline">
+                              <a href={featuredTrailer.url} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline">
                                 Download the video
                               </a> instead.
                             </p>
@@ -163,7 +164,7 @@ const About = () => {
                           <source src={featuredTrailer.url} type={featuredTrailer.type || 'audio/mpeg'} />
                           <p className="text-muted-foreground">
                             Your browser doesn't support HTML5 audio. 
-                            <a href={featuredTrailer.url} className="text-blue-600 underline">
+                            <a href={featuredTrailer.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
                               Download the audio
                             </a> instead.
                           </p>

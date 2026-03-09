@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm i && vite build && cp dist/index.html dist/404.html && tsx scripts/build-rss.ts",
-    "test": "npm i && tsc -p tsconfig.app.json --noEmit && eslint && vitest run && vite build",
+    "build": "npm ci && vite build && cp dist/index.html dist/404.html && tsx scripts/build-rss.ts",
+    "test": "npm ci && tsc -p tsconfig.app.json --noEmit && eslint && vitest run && vite build",
     "deploy": "npm run build && npx -y nostr-deploy-cli deploy --skip-setup"
   },
   "dependencies": {
@@ -54,7 +54,7 @@
     "input-otp": "^1.2.4",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
-    "nostr-tools": "^2.16.1",
+    "nostr-tools": "^2.23.3",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",

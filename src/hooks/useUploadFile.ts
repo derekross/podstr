@@ -4,6 +4,21 @@ import { BlossomUploader } from '@nostrify/nostrify/uploaders';
 import { useCurrentUser } from "./useCurrentUser";
 import { useBlossomServers } from "./useBlossomServers";
 
+/** Maximum file size: 2GB for audio/video, enforced before upload */
+const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
+
+/** Allowed file extensions for upload (SVG intentionally excluded - can contain embedded scripts) */
+const ALLOWED_EXTENSIONS = new Set([
+  // Audio
+  '.mp3', '.m4a', '.aac', '.ogg', '.oga', '.wav', '.flac', '.opus', '.webm',
+  // Video
+  '.mp4', '.m4v', '.mov', '.avi', '.mkv',
+  // Images (no SVG - XSS risk)
+  '.jpg', '.jpeg', '.png', '.gif', '.webp',
+  // Documents
+  '.json', '.srt', '.vtt',
+]);
+
 /** Map of file extensions to MIME types for common audio/video formats */
 const MIME_TYPE_MAP: Record<string, string> = {
   // Audio
@@ -22,13 +37,12 @@ const MIME_TYPE_MAP: Record<string, string> = {
   '.mov': 'video/quicktime',
   '.avi': 'video/x-msvideo',
   '.mkv': 'video/x-matroska',
-  // Images
+  // Images (SVG intentionally excluded - can contain embedded JavaScript)
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.png': 'image/png',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
   // Documents
   '.json': 'application/json',
   '.srt': 'text/srt',
@@ -71,6 +85,17 @@ export function useUploadFile() {
     mutationFn: async (file: File) => {
       if (!user) {
         throw new Error('Must be logged in to upload files');
+      }
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error(`File is too large. Maximum size is ${Math.round(MAX_FILE_SIZE / (1024 * 1024 * 1024))}GB.`);
+      }
+
+      // Validate file type
+      const ext = file.name.toLowerCase().match(/\.[^.]+$/)?.[0];
+      if (ext && !ALLOWED_EXTENSIONS.has(ext)) {
+        throw new Error(`File type "${ext}" is not allowed. SVG files are blocked for security reasons.`);
       }
 
       // Ensure file has correct MIME type

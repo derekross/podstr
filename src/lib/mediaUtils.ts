@@ -1,4 +1,5 @@
 import type { NostrEvent } from '@nostrify/nostrify';
+import { isSafeUrl } from '@/lib/utils';
 
 export interface MediaItem {
   url: string;
@@ -41,7 +42,7 @@ export function extractMediaFromEvent(event: NostrEvent): MediaItem[] {
         }
       }
       
-      if (mediaItem.url && mediaItem.mimeType) {
+      if (mediaItem.url && mediaItem.mimeType && isSafeUrl(mediaItem.url)) {
         // Determine media type from MIME type
         if (mediaItem.mimeType.startsWith('image/')) {
           mediaItem.type = 'image';

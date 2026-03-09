@@ -11,6 +11,7 @@ import { genUserName } from '@/lib/genUserName';
 import { PostCard } from './PostCard';
 import { extractRepostData, type RepostData } from '@/lib/mediaUtils';
 import type { NostrEvent } from '@nostrify/nostrify';
+import { isSafeUrl } from '@/lib/utils';
 
 interface RepostCardProps {
   event: NostrEvent;
@@ -164,7 +165,7 @@ function OriginalEventPlaceholder({ repostData }: OriginalEventCardProps) {
                 </a>
               </Button>
               
-              {repostData.relayUrl && (
+              {repostData.relayUrl && isSafeUrl(repostData.relayUrl) && (
                 <Button variant="outline" size="sm" asChild>
                   <a 
                     href={repostData.relayUrl} 

@@ -18,6 +18,7 @@ import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { usePodcastConfig } from '@/hooks/usePodcastConfig';
 import type { PodcastEpisode } from '@/types/podcast';
 import type { NostrEvent } from '@nostrify/nostrify';
+import { isSafeUrl } from '@/lib/utils';
 
 interface AddressableEventParams {
   pubkey: string;
@@ -167,12 +168,29 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
   // Fetch transcript content if URL is available
   const { data: transcriptContent, isLoading: isLoadingTranscript } = useQuery<string | null>({
     queryKey: ['transcript', episode?.transcriptUrl],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!episode?.transcriptUrl) return null;
 
+      // Validate URL is HTTPS before fetching untrusted external content
       try {
-        const response = await fetch(episode.transcriptUrl);
+        const parsed = new URL(episode.transcriptUrl);
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+      } catch {
+        return null;
+      }
+
+      try {
+        const response = await fetch(episode.transcriptUrl, {
+          signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+        });
         if (!response.ok) throw new Error('Failed to fetch transcript');
+
+        // Limit response size to 5MB to prevent resource exhaustion
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength) > 5 * 1024 * 1024) {
+          throw new Error('Transcript file too large');
+        }
+
         return await response.text();
       } catch (error) {
         console.error('Error fetching transcript:', error);
@@ -186,24 +204,59 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
   // Fetch chapters content if URL is available
   const { data: chaptersContent, isLoading: isLoadingChapters } = useQuery<Array<{ startTime: number; title: string; img?: string; url?: string }> | null>({
     queryKey: ['chapters', episode?.chaptersUrl],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!episode?.chaptersUrl) return null;
 
+      // Validate URL is HTTPS before fetching untrusted external content
       try {
-        const response = await fetch(episode.chaptersUrl);
+        const parsed = new URL(episode.chaptersUrl);
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+      } catch {
+        return null;
+      }
+
+      try {
+        const response = await fetch(episode.chaptersUrl, {
+          signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+        });
         if (!response.ok) throw new Error('Failed to fetch chapters');
+
+        // Limit response size to 2MB to prevent resource exhaustion
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength) > 2 * 1024 * 1024) {
+          throw new Error('Chapters file too large');
+        }
+
         const data = await response.json();
 
         // Handle both formats:
         // 1. Podcasting 2.0 format: { "version": "1.2.0", "chapters": [...] }
         // 2. Simple array format: [...]
+        let chapters: Array<{ startTime: number; title: string; img?: string; url?: string }> | null = null;
         if (Array.isArray(data)) {
-          return data;
+          chapters = data;
         } else if (data && typeof data === 'object' && Array.isArray(data.chapters)) {
-          return data.chapters;
+          chapters = data.chapters;
         }
 
-        return null;
+        // Validate chapter URLs are safe (prevent javascript: protocol)
+        if (chapters) {
+          const isSafeChapterUrl = (url: string) => {
+            try {
+              const parsed = new URL(url);
+              return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+            } catch {
+              return false;
+            }
+          };
+          chapters = chapters.map(ch => ({
+            ...ch,
+            url: ch.url && isSafeChapterUrl(ch.url) ? ch.url : undefined,
+            img: ch.img && isSafeChapterUrl(ch.img) ? ch.img : undefined,
+          }));
+        }
+
+        return chapters;
       } catch (error) {
         console.error('Error fetching chapters:', error);
         return null;
@@ -531,15 +584,17 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
                     ) : (
                       <div className="text-center py-8">
                         <p className="text-muted-foreground mb-4">Failed to load chapters</p>
-                        <a
-                          href={episode.chaptersUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-primary hover:underline"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                          View Chapters File
-                        </a>
+                        {episode.chaptersUrl && isSafeUrl(episode.chaptersUrl) && (
+                          <a
+                            href={episode.chaptersUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-primary hover:underline"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            View Chapters File
+                          </a>
+                        )}
                       </div>
                     )}
                   </CardContent>
@@ -584,15 +639,17 @@ export function EpisodePage({ eventId, addressableEvent }: EpisodePageProps) {
                     ) : (
                       <div className="text-center py-8">
                         <p className="text-muted-foreground mb-4">Failed to load transcript</p>
-                        <a
-                          href={episode.transcriptUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-primary hover:underline"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                          View Transcript File
-                        </a>
+                        {episode.transcriptUrl && isSafeUrl(episode.transcriptUrl) && (
+                          <a
+                            href={episode.transcriptUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-primary hover:underline"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            View Transcript File
+                          </a>
+                        )}
                       </div>
                     )}
                   </CardContent>

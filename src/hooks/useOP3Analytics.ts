@@ -49,7 +49,10 @@ interface OP3Analytics {
 export function useOP3Analytics(timeRange: '7d' | '30d' | '90d' | 'month' = '30d') {
   const { data: podcastMetadata } = usePodcastMetadata();
 
-  // API token is the only env var - it's a secret
+  // SECURITY NOTE: This token is exposed in the client bundle since this is a static SPA.
+  // For production use, consider proxying OP3 API calls through a server-side function
+  // (e.g., Cloudflare Worker) to keep the token private. The VITE_ prefix is required
+  // by Vite for client-side access but means the token is visible in the JS bundle.
   const apiToken = import.meta.env.VITE_OP3_API_TOKEN;
   // Get GUID from config (no longer an env var)
   const rawGuid = PODCAST_CONFIG.podcast.guid;
@@ -315,7 +318,7 @@ export function useOP3Analytics(timeRange: '7d' | '30d' | '90d' | 'month' = '30d
  */
 export function useOP3Available() {
   const { data: podcastMetadata } = usePodcastMetadata();
-  // API token is the only env var - it's a secret
+  // SECURITY NOTE: See note in useOP3Analytics above about token exposure.
   const apiToken = import.meta.env.VITE_OP3_API_TOKEN;
   // Get GUID from config (no longer an env var)
   const rawGuid = PODCAST_CONFIG.podcast.guid;

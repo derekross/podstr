@@ -38,7 +38,11 @@ export function RelaySelector(props: RelaySelectorProps) {
   // Function to normalize relay URL by adding wss:// if no protocol is present
   const normalizeRelayUrl = (url: string): string => {
     const trimmed = url.trim();
-    if (trimmed.startsWith("ws://") || trimmed.startsWith("wss://")) {
+    // Upgrade ws:// to wss:// for security - unencrypted connections expose all Nostr traffic
+    if (trimmed.startsWith("ws://")) {
+      return `wss://${trimmed.slice(5)}`;
+    }
+    if (trimmed.startsWith("wss://")) {
       return trimmed;
     }
     return `wss://${trimmed}`;
@@ -49,11 +53,11 @@ export function RelaySelector(props: RelaySelectorProps) {
     const trimmed = input.trim();
     if (!trimmed) return false;
 
-    // Basic validation for relay URL
+    // Only allow wss:// (encrypted) relay connections
     const normalized = normalizeRelayUrl(trimmed);
     try {
       new URL(normalized);
-      return normalized.startsWith("wss://") || normalized.startsWith("ws://");
+      return normalized.startsWith("wss://");
     } catch {
       return false;
     }

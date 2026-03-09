@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { type MediaItem } from '@/lib/mediaUtils';
+import { isSafeUrl } from '@/lib/utils';
 
 interface MediaRendererProps {
   media: MediaItem[];
@@ -27,6 +28,9 @@ interface MediaItemProps {
 }
 
 function MediaItem({ media }: MediaItemProps) {
+  // Validate URL protocol before rendering any user-controlled media
+  if (!isSafeUrl(media.url)) return null;
+
   switch (media.type) {
     case 'image':
       return <ImageRenderer media={media} />;

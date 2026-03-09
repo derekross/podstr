@@ -15,6 +15,9 @@ dist-ssr
 # Environment configuration
 .env
 .env.local
+.env.production
+.env.development
+.env.staging
 
 # Editor directories and files
 .idea

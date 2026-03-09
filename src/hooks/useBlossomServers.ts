@@ -33,7 +33,7 @@ export function useBlossomServers() {
           return serverList.tags
             .filter(([tagName]) => tagName === 'server')
             .map(([, serverUrl]) => serverUrl)
-            .filter(url => url && (url.startsWith('http://') || url.startsWith('https://')));
+            .filter(url => url && url.startsWith('https://'));
         }
       } catch (error) {
         console.warn('Failed to fetch user Blossom servers:', error);
@@ -53,10 +53,11 @@ export function useBlossomServers() {
       }
 
       // Validate server URLs
+      // Only allow HTTPS servers to prevent transmitting data in cleartext
       const validServers = servers.filter(url => {
         try {
-          new URL(url);
-          return url.startsWith('http://') || url.startsWith('https://');
+          const parsed = new URL(url);
+          return parsed.protocol === 'https:';
         } catch {
           return false;
         }
@@ -119,7 +120,8 @@ export const DEFAULT_BLOSSOM_SERVERS = [
 export function isValidBlossomServerUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    // Only allow HTTPS to prevent transmitting auth tokens and files in cleartext
+    return parsed.protocol === 'https:';
   } catch {
     return false;
   }
