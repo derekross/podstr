@@ -15,7 +15,7 @@ import { PersistentAudioPlayer } from "./components/audio/PersistentAudioPlayer"
 
 export function AppRouter() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/podstr/">
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<Index />} />
