@@ -44,7 +44,7 @@ jobs:
 
       - name: Generate RSS feed with Nostr integration
         run: |
-          tsx scripts/build-rss-github-actions.ts || echo "RSS generation failed, using fallback"
+          npx -y tsx scripts/build-rss-github-actions.ts || echo "RSS generation failed, using fallback"
         continue-on-error: true
 
       - name: Setup Pages
