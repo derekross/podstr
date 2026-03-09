@@ -135,7 +135,7 @@ function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[],
     <item>
       <title>${escapeXml(episode.title)}</title>
       <description>${escapeXml(episode.description || '')}</description>
-      <link>${escapeXml(baseUrl)}/${encodeEpisodeAsNaddr(episode.authorPubkey, episode.identifier)}</link>
+      <link>${escapeXml(audioUrl)}</link>
       <pubDate>${episode.publishDate.toUTCString()}</pubDate>
       <guid isPermaLink="false">${episode.authorPubkey}:${episode.identifier}</guid>
       <enclosure url="${escapeXml(audioUrl)}" type="${episode.audioType}" length="0" />
