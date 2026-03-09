@@ -99,62 +99,62 @@ export const PODCAST_CONFIG: PodcastConfig = {
   // CREATOR IDENTITY
   // ===========================================================================
   // Your Nostr public key in npub format
-  creatorNpub: "npub1km5prrxcgt5fwgjzjpltyswsuu7u7jcj2cx9hk2rwvxyk00v2jqsgv0a3h",
+  creatorNpub: "npub17w98lrsg36nj0cckhxgd52wdlrgnx544lgy4jsg3fwpla7jtvlaqgjdrc6",
 
   podcast: {
     // =========================================================================
     // BASIC PODCAST INFO
     // =========================================================================
-    
+
     // The name of your podcast
-    title: "PODSTR Podcast",
-    
+    title: "Croix4Clerk",
+
     // A description of your podcast content
-    description: "A Nostr-powered podcast exploring decentralized conversations",
-    
+    description: "A podcast for Kurt Croix's run for Clerk in Ray County, MO in 2026.",
+
     // Your name as the podcast author/host
-    author: "PODSTR Creator",
-    
+    author: "Kurt Croix",
+
     // Contact email for your podcast
-    email: "creator@podstr.example",
-    
+    email: "croix4clerk@pm.me",
+
     // URL to your podcast cover art image (minimum 1400x1400 pixels recommended)
-    image: "https://example.com/podcast-artwork.jpg",
-    
+    image: "https://pbcdn1.podbean.com/imglogo/image-logo/22151441/podcastLogo_9udnn9_300x300.png",
+
     // Language code (e.g., en-us, es-es, fr-fr)
     language: "en-us",
-    
+
     // Podcast categories
-    categories: ["Technology", "Social Networking", "Society & Culture"],
-    
+    categories: ["Government"],
+
     // Whether your podcast contains explicit content
     explicit: false,
-    
+
     // Your podcast website URL
-    website: "https://podstr.example",
-    
+    website: "https://mypodcast.com",
+
     // Copyright notice
-    copyright: "© 2025 PODSTR Creator",
+    copyright: "@2026 Kurt Croix",
 
     // =========================================================================
     // PODCASTING 2.0 SETTINGS
     // =========================================================================
-    
+
     // Unique identifier for your podcast (typically your npub)
-    guid: "npub1km5prrxcgt5fwgjzjpltyswsuu7u7jcj2cx9hk2rwvxyk00v2jqsgv0a3h",
-    
+    guid: "npub17w98lrsg36nj0cckhxgd52wdlrgnx544lgy4jsg3fwpla7jtvlaqgjdrc6",
+
     // Type of podcast content
     medium: "podcast",
-    
+
     // Publisher name (can be same as author)
-    publisher: "PODSTR Creator",
-    
+    publisher: "Kurt Croix",
+
     // Podcast type: "episodic" (standalone episodes) or "serial" (sequential)
     type: "episodic",
-    
+
     // Whether the podcast is complete/finished
     complete: false,
-    
+
     // Whether the podcast is locked/premium
     locked: false,
 
@@ -181,34 +181,19 @@ export const PODCAST_CONFIG: PodcastConfig = {
     // =========================================================================
     value: {
       // Suggested amount per minute in sats
-      amount: 1000,
-      
+      amount: 0,
+
       // Currency type
       currency: "sats",
-      
+
       // Payment recipients - splits must add up to 100
       recipients: [
         {
-          name: "Podcast Host",
-          type: "node",
-          address: "030a58b8653d32b99200a2334cfe913e51dc7d155aa0116c176657a4f1722677a3",
-          split: 80,
-          fee: false,
-        },
-        {
-          name: "Producer",
+          name: "Kurt Croix",
           type: "lnaddress",
-          address: "producer@getalby.com",
-          split: 15,
-          customKey: "podcast",
-          customValue: "producer-fee",
-        },
-        {
-          name: "Platform Fee",
-          type: "node",
-          address: "021f2f8e1e46a48d0a9f1b7e4e8b5c8d5e4f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6",
-          split: 5,
-          fee: true,
+          address: "croix4clerk@pm.me",
+          split: 100,
+          fee: false,
         },
       ],
     },
@@ -225,7 +210,7 @@ export const PODCAST_CONFIG: PodcastConfig = {
     // People involved in the podcast
     person: [
       {
-        name: "PODSTR Creator",
+        name: "Kurt Croix",
         role: "host",
         group: "cast",
         // img: "https://your-photo-url.jpg",
@@ -243,23 +228,23 @@ export const PODCAST_CONFIG: PodcastConfig = {
     // ADVANCED SETTINGS (Optional)
     // =========================================================================
     // Uncomment and configure as needed:
-    
+
     // Text metadata
     // txt: [
     //   { purpose: "verify", content: "verification_text" },
     // ],
-    
+
     // Remote item references
     // remoteItem: [
     //   { feedGuid: "guid", feedUrl: "url", itemGuid: "guid", medium: "podcast" },
     // ],
-    
+
     // Content blocking
     // block: {
     //   id: "platform_id",
     //   reason: "reason_text",
     // },
-    
+
     // New feed URL (for podcast migration)
     // newFeedUrl: "https://new-feed-url.com/rss.xml",
   },
