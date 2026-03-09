@@ -18,7 +18,7 @@ export function useBlossomServers() {
     queryFn: async (c) => {
       if (!user?.pubkey) return [];
       
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(10_000)]); // Increased to 10 seconds
       
       try {
         // Query user's Blossom server list (kind 10063)

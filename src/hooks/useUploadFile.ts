@@ -110,7 +110,8 @@ export function useUploadFile() {
         signer: user.signer,
         // Default expiresIn is 60s which is too short for large audio/video files.
         // SHA-256 hashing + upload can easily exceed 60s for podcast episodes.
-        expiresIn: 300_000, // 5 minutes
+        // Increased to 30 minutes to support large podcast episodes and slow connections.
+        expiresIn: 1_800_000, // 30 minutes
       });
 
       try {
