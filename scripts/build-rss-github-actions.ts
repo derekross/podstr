@@ -40,14 +40,23 @@ function getCreatorPubkeyHex(creatorNpub: string): string {
 async function fetchPodcastMetadataMultiRelay(relays: Array<{url: string, relay: NRelay1}>, creatorPubkeyHex: string) {
   console.log('📡 Fetching podcast metadata from Nostr...');
 
+  // Add timeout to prevent hanging
+  const timeoutMs = 10_000; // 10 seconds per relay
+  const startTime = Date.now();
+
   for (const { url, relay } of relays) {
     try {
       console.log(`🔄 Trying relay: ${url}`);
-      const events = await relay.query([{
-        kinds: [PODCAST_KINDS.PODCAST_METADATA],
-        authors: [creatorPubkeyHex],
-        limit: 1
-      }]);
+
+      const events = await Promise.race([
+        relay.query([{
+          kinds: [PODCAST_KINDS.PODCAST_METADATA],
+          authors: [creatorPubkeyHex],
+          limit: 1
+        }]),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs)
+      ]);
 
       if (events.length > 0) {
         const event = events[0];
@@ -61,7 +70,14 @@ async function fetchPodcastMetadataMultiRelay(relays: Array<{url: string, relay:
         return metadata;
       }
     } catch (error) {
-      console.warn(`⚠️  Failed to fetch from ${url}:`, error);
+      const elapsed = Date.now() - startTime;
+      console.warn(`⚠️  Failed to fetch from ${url} (after ${elapsed}ms):`, error.message);
+
+      // Check if we've spent too much time
+      if (elapsed > timeoutMs * 2) {
+        console.warn('⏱️  Timeout exceeded, stopping relay queries');
+        break;
+      }
     }
   }
 
@@ -77,14 +93,23 @@ async function fetchPodcastEpisodesMultiRelay(relays: Array<{url: string, relay:
 
   const episodeMap = new Map<string, NostrEvent>();
 
+  // Add timeout to prevent hanging
+  const timeoutMs = 10_000; // 10 seconds per relay
+  const startTime = Date.now();
+
   for (const { url, relay } of relays) {
     try {
       console.log(`🔄 Trying episodes on relay: ${url}`);
-      const events = await relay.query([{
-        kinds: [PODCAST_KINDS.EPISODE],
-        authors: [creatorPubkeyHex],
-        limit: 100
-      }]);
+
+      const events = await Promise.race([
+        relay.query([{
+          kinds: [PODCAST_KINDS.EPISODE],
+          authors: [creatorPubkeyHex],
+          limit: 100
+        }]),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs)
+      ]);
 
       console.log(`📊 Found ${events.length} episodes on ${url}`);
 
@@ -99,7 +124,14 @@ async function fetchPodcastEpisodesMultiRelay(relays: Array<{url: string, relay:
         }
       }
     } catch (error) {
-      console.warn(`⚠️  Failed to fetch episodes from ${url}:`, error);
+      const elapsed = Date.now() - startTime;
+      console.warn(`⚠️  Failed to fetch episodes from ${url} (after ${elapsed}ms):`, error.message);
+
+      // Check if we've spent too much time
+      if (elapsed > timeoutMs * 2) {
+        console.warn('⏱️  Timeout exceeded, stopping relay queries');
+        break;
+      }
     }
   }
 
@@ -116,14 +148,22 @@ async function fetchPodcastTrailersMultiRelay(relays: Array<{url: string, relay:
 
   const trailerMap = new Map<string, NostrEvent>();
 
+  // Add timeout to prevent hanging
+  const timeoutMs = 10_000; // 10 seconds per relay
+  const startTime = Date.now();
+
   for (const { url, relay } of relays) {
     try {
       console.log(`🔄 Trying trailers on relay: ${url}`);
-      const events = await relay.query([{
-        kinds: [PODCAST_KINDS.TRAILER],
-        authors: [creatorPubkeyHex],
-        limit: 100
-      }]);
+      const events = await Promise.race([
+        relay.query([{
+          kinds: [PODCAST_KINDS.TRAILER],
+          authors: [creatorPubkeyHex],
+          limit: 100
+        }]),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs)
+      ]);
 
       console.log(`📊 Found ${events.length} trailers on ${url}`);
 
@@ -137,7 +177,14 @@ async function fetchPodcastTrailersMultiRelay(relays: Array<{url: string, relay:
         }
       }
     } catch (error) {
-      console.warn(`⚠️  Failed to fetch trailers from ${url}:`, error);
+      const elapsed = Date.now() - startTime;
+      console.warn(`⚠️  Failed to fetch trailers from ${url} (after ${elapsed}ms):`, error.message);
+
+      // Check if we've spent too much time
+      if (elapsed > timeoutMs * 2) {
+        console.warn('⏱️  Timeout exceeded, stopping relay queries');
+        break;
+      }
     }
   }
 
@@ -473,5 +520,29 @@ function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[],
 // Build RSS feed
 buildRSSForGitHubActions().catch(error => {
   console.error('❌ Error building RSS feed:', error);
+
+  // Ensure we write a health file even if there's an error
+  try {
+    const distDir = path.resolve('dist');
+    await fs.mkdir(distDir, { recursive: true });
+
+    const healthPath = path.join(distDir, 'rss-health.json');
+    const healthData = {
+      status: 'error',
+      endpoint: '/rss.xml',
+      generatedAt: new Date().toISOString(),
+      episodeCount: 0,
+      feedSize: 0,
+      environment: 'production',
+      accessible: false,
+      dataSource: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+    await fs.writeFile(healthPath, JSON.stringify(healthData, null, 2));
+    console.log('✅ Error health file written');
+  } catch (writeError) {
+    console.error('❌ Failed to write error health file:', writeError);
+  }
+
   process.exit(1);
 });
