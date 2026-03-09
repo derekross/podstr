@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Sample Episode",
+    "description": "This is a sample episode. Replace this with your actual episode data.",
+    "identifier": "sample-1",
+    "url": "https://example.com/sample.mp3",
+    "duration": 1800,
+    "episodeNumber": 1,
+    "explicit": false,
+    "type": "full",
+    "createdAt": "2026-03-09T21:00:38.697Z",
+    "size": 1000000
+  }
+]
