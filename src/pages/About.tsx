@@ -244,7 +244,7 @@ const About = () => {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Button className="w-full" asChild>
-                    <a href="/rss.xml" target="_blank" rel="noopener noreferrer">
+                    <a href="https://kurt-croix.github.io/podstr/rss.xml" target="_blank" rel="noopener noreferrer">
                       <Rss className="w-4 h-4 mr-2" />
                       RSS Feed
                     </a>

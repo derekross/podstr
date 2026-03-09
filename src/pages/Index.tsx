@@ -251,7 +251,7 @@ const Index = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button variant="outline" className="w-full justify-start focus-ring" asChild>
-                  <a href="/rss.xml" target="_blank" rel="noopener noreferrer" className="group">
+                  <a href="https://kurt-croix.github.io/podstr/rss.xml" target="_blank" rel="noopener noreferrer" className="group">
                     <Rss className="w-4 h-4 mr-2 group-hover:animate-pulse" />
                     RSS Feed
                     <svg className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">

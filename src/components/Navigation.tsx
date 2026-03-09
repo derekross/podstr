@@ -69,7 +69,7 @@ export function Navigation({ className }: NavigationProps) {
       description: 'Podcast info'
     },
     {
-      path: '/rss.xml',
+      path: 'https://kurt-croix.github.io/podstr/rss.xml',
       icon: Rss,
       label: 'RSS Feed',
       description: 'Subscribe',
