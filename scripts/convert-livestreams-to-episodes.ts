@@ -14,7 +14,7 @@
 
 import { Console } from 'console';
 import type { NostrEvent } from '@nostrify/nostrify';
-import { Nostr } from '@nostrify/nostrify';
+import { NPool, NRelay1 } from '@nostrify/nostrify';
 import { nip19 } from 'nostr-tools';
 import type {
   LivestreamConversionConfig,
@@ -76,19 +76,20 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
     throw error;
   }
 
-  // Create Nostr instance
-  const nostr = new Nostr({
-    relayUrls: [
-      'wss://relay.primal.net',
-      'wss://relay.nostr.band',
-      'wss://relay.damus.io',
-      'wss://nos.lol',
-      'wss://relay.ditto.pub',
-    ],
+  // Create NPool for querying relays
+  const pool = new NPool({
+    open: (url) => new NRelay1(url),
+    reqRouter: (filters) => new Map([
+      ['wss://relay.primal.net', filters],
+      ['wss://relay.nostr.band', filters],
+      ['wss://relay.damus.io', filters],
+      ['wss://nos.lol', filters],
+      ['wss://relay.ditto.pub', filters],
+    ]),
   });
 
   // Query for kind 30311 livestreams
-  const events = await nostr.query([
+  const events = await pool.query([
     {
       kinds: [30311],
       authors: [targetPubkey],
@@ -122,19 +123,20 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
     throw error;
   }
 
-  // Create Nostr instance
-  const nostr = new Nostr({
-    relayUrls: [
-      'wss://relay.primal.net',
-      'wss://relay.nostr.band',
-      'wss://relay.damus.io',
-      'wss://nos.lol',
-      'wss://relay.ditto.pub',
-    ],
+  // Create NPool for querying relays
+  const pool = new NPool({
+    open: (url) => new NRelay1(url),
+    reqRouter: (filters) => new Map([
+      ['wss://relay.primal.net', filters],
+      ['wss://relay.nostr.band', filters],
+      ['wss://relay.damus.io', filters],
+      ['wss://nos.lol', filters],
+      ['wss://relay.ditto.pub', filters],
+    ]),
   });
 
   // Query for kind 30054 episodes
-  const events = await nostr.query([
+  const events = await pool.query([
     {
       kinds: [30054],
       authors: [targetPubkey],
@@ -264,19 +266,17 @@ async function createSingleEpisode(
 async function publishEpisode(event: NostrEvent): Promise<void> {
   console.log('📡 Publishing episode to Nostr...');
 
-  // Create Nostr instance
-  const nostr = new Nostr({
-    relayUrls: [
-      'wss://relay.primal.net',
-      'wss://relay.nostr.band',
-      'wss://relay.damus.io',
-      'wss://nos.lol',
-      'wss://relay.ditto.pub',
-    ],
+  // Create NPool for querying relays
+  const pool = new NPool({
+    open: (url) => new NRelay1(url),
+    eventRouter: () => {
+      // Route to all relays
+      return ['wss://relay.primal.net', 'wss://relay.nostr.band', 'wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.ditto.pub'];
+    },
   });
 
   // Publish to relays
-  await nostr.publish(event);
+  await pool.publish(event);
 
   console.log(`✅ Episode published successfully`);
 }
