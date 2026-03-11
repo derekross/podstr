@@ -32,3 +32,8 @@ dist-ssr
 .vercel
 
 # Configuration is now in src/lib/podcastConfig.ts
+
+# Conversion state and temp files
+.github/conversion-state.json
+conversion-state.json
+.temp-audio/

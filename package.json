@@ -8,7 +8,9 @@
     "build": "npm ci && vite build && cp dist/index.html dist/404.html && tsx scripts/build-rss.ts",
     "build:gh-pages": "npm ci && vite build && cp dist/index.html dist/404.html && tsx scripts/build-rss-hybrid.ts",
     "test": "npm ci && tsc -p tsconfig.app.json --noEmit && eslint && vitest run && vite build",
-    "deploy": "npm run build && npx -y nostr-deploy-cli deploy --skip-setup"
+    "deploy": "npm run build && npx -y nostr-deploy-cli deploy --skip-setup",
+    "convert-livestreams-to-episodes": "tsx scripts/convert-livestreams-to-episodes.ts",
+    "convert-livestreams-to-episodes:batch": "tsx scripts/convert-livestreams-to-episodes.ts --batch-mode=true"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.6",

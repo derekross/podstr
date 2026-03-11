@@ -1,0 +1,71 @@
+name: Convert Livestreams to Episodes
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      batch_mode:
+        description: 'Batch multiple livestreams into one episode'
+        required: false
+        default: 'false'
+        type: boolean
+      livestream_ids:
+        description: 'Comma-separated livestream d-tag identifiers (optional, for manual selection)'
+        required: false
+        type: string
+
+  # Scheduled check (once daily at 2 AM UTC)
+  schedule:
+    - cron: '0 2 * * *'
+
+jobs:
+  convert-livestreams:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Convert livestreams to episodes
+        env:
+          NOSTR_PRIVATE_KEY: ${{ secrets.NOSTR_PRIVATE_KEY }}
+          NSEC_BUNKER_URL: ${{ secrets.NSEC_BUNKER_URL }}
+          LIVESTREAM_AUTHOR_NPUB: ${{ secrets.LIVESTREAM_AUTHOR_NPUB }}
+          BATCH_MODE: ${{ github.event.inputs.batch_mode || 'false' }}
+          LIVESTREAM_IDS: ${{ github.event.inputs.livestream_ids || '' }}
+        run: |
+          npx -y tsx scripts/convert-livestreams-to-episodes.ts \
+            --batch-mode="${BATCH_MODE}" \
+            --livestream-ids="${LIVESTREAM_IDS}"
+
+      - name: Generate RSS feed
+        run: npx -y tsx scripts/build-rss.ts
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload RSS artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/rss.xml
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+        id: deployment

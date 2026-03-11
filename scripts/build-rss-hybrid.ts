@@ -3,6 +3,30 @@ import path from 'path';
 import { PODCAST_CONFIG } from '../src/lib/podcastConfig.js';
 
 /**
+ * Episode data structure
+ */
+interface EpisodeData {
+  url?: string;
+  audioUrl?: string;
+  pubDate?: string;
+  createdAt?: number | string;
+  duration?: number;
+  imageUrl?: string;
+  image?: string;
+  description?: string;
+  content?: string;
+  identifier?: string;
+  d?: string;
+  size?: number;
+  audioSize?: number;
+  explicit?: boolean;
+  type?: string;
+  episodeNumber?: number;
+  season?: number;
+  title: string;
+}
+
+/**
  * Escape XML special characters
  */
 function escapeXml(unsafe: string): string {
@@ -32,7 +56,7 @@ function formatDurationForRSS(seconds: number): string {
 /**
  * Generate episode item XML
  */
-function generateEpisodeItemXML(episode: any): string {
+function generateEpisodeItemXML(episode: EpisodeData): string {
   const audioUrl = episode.url || episode.audioUrl;
   const pubDate = episode.pubDate || new Date(episode.createdAt || Date.now()).toUTCString();
   const duration = episode.duration ? formatDurationForRSS(episode.duration) : '00:00';
@@ -71,13 +95,13 @@ async function buildHybridRSS() {
     const baseUrl = config.website || 'https://kurt-croix.github.io/podstr';
 
     // Try to read episodes from a local file
-    let episodes: any[] = [];
+    let episodes: EpisodeData[] = [];
     try {
       const episodesPath = path.resolve('episodes.json');
       const episodesContent = await fs.readFile(episodesPath, 'utf-8');
       episodes = JSON.parse(episodesContent);
       console.log(`📊 Loaded ${episodes.length} episodes from episodes.json`);
-    } catch (error) {
+    } catch {
       console.log('📄 No episodes.json file found, RSS feed will have 0 episodes');
       console.log('💡 Tip: Create episodes.json with episode data to include episodes in RSS feed');
     }

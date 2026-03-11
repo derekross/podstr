@@ -5,8 +5,6 @@ import { NRelay1, NostrEvent } from '@nostrify/nostrify';
 import type { PodcastEpisode, PodcastTrailer } from '../src/types/podcast.js';
 import { PODCAST_CONFIG, PodcastConfig } from '../src/lib/podcastConfig.js';
 
-// Import naddr encoding function
-import { encodeEpisodeAsNaddr } from '../src/lib/nip19Utils.js';
 // Import OP3 utilities
 import { addOP3Prefix } from '../src/lib/op3Utils.js';
 
