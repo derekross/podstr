@@ -152,8 +152,7 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
  */
 async function createBatchEpisode(
   livestreams: NostrEvent[],
-  privateKey: string,
-  bunkerUrl?: string
+  privateKey: string
 ): Promise<NostrEvent> {
   console.log(`🔄 Creating batch episode from ${livestreams.length} livestreams`);
 
@@ -173,7 +172,7 @@ async function createBatchEpisode(
   );
 
   // Upload combined audio to Blossom
-  const combinedAudioUrl = await uploadCombinedAudio(combinedFilepath, privateKey, bunkerUrl);
+  const combinedAudioUrl = await uploadCombinedAudio(combinedFilepath, privateKey);
 
   // Generate title from first livestream
   const firstStream = livestreams[0];
@@ -188,7 +187,7 @@ async function createBatchEpisode(
   });
 
   // Create signer
-  const signer = createSigner(privateKey, bunkerUrl);
+  const signer = createSigner(privateKey);
   const dTag = `batch-livestreams-${Date.now()}`;
 
   const event = await signer.signEvent({
@@ -218,8 +217,7 @@ async function createBatchEpisode(
  */
 async function createSingleEpisode(
   livestream: NostrEvent,
-  privateKey: string,
-  bunkerUrl?: string
+  privateKey: string
 ): Promise<NostrEvent> {
   console.log('🔄 Creating single episode...');
 
@@ -236,7 +234,7 @@ async function createSingleEpisode(
   const dTag = livestream.tags.find(t => t[0] === 'd')?.[1] || `episode-${Date.now()}`;
 
   // Create signer
-  const signer = createSigner(privateKey, bunkerUrl);
+  const signer = createSigner(privateKey);
 
   const event = await signer.signEvent({
     kind: 30054,
@@ -297,7 +295,6 @@ async function main() {
     batchMode: args.batchMode || process.env.BATCH_MODE === 'true',
     livestreamIds: args.livestreamIds || process.env.LIVESTREAM_IDS,
     nostrPrivateKey: process.env.NOSTR_PRIVATE_KEY!,
-    nsecBunkerUrl: process.env.NSEC_BUNKER_URL,
     targetNpub: process.env.LIVESTREAM_AUTHOR_NPUB!,
   };
 
@@ -315,7 +312,6 @@ async function main() {
   console.log('📋 Configuration:');
   console.log('  - Batch mode:', config.batchMode);
   console.log('  - Target npub:', config.targetNpub);
-  console.log('  - Nsec bunker:', config.nsecBunkerUrl ? 'enabled' : 'disabled');
 
   try {
     // Load state
@@ -387,7 +383,7 @@ async function main() {
           }
 
           // Create batch episode
-          const episode = await createBatchEpisode(group, config.nostrPrivateKey, config.nsecBunkerUrl);
+          const episode = await createBatchEpisode(group, config.nostrPrivateKey);
 
           // Publish to Nostr
           await publishEpisode(episode);
@@ -464,7 +460,7 @@ async function main() {
           }
 
           // Create single episode
-          const episode = await createSingleEpisode(livestream, config.nostrPrivateKey, config.nsecBunkerUrl);
+          const episode = await createSingleEpisode(livestream, config.nostrPrivateKey);
 
           // Publish to Nostr
           await publishEpisode(episode);

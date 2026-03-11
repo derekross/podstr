@@ -46,7 +46,6 @@ jobs:
       - name: Convert livestreams to episodes
         env:
           NOSTR_PRIVATE_KEY: ${{ secrets.NOSTR_PRIVATE_KEY }}
-          NSEC_BUNKER_URL: ${{ secrets.NSEC_BUNKER_URL }}
           LIVESTREAM_AUTHOR_NPUB: ${{ secrets.LIVESTREAM_AUTHOR_NPUB }}
           BATCH_MODE: ${{ github.event.inputs.batch_mode || 'false' }}
           LIVESTREAM_IDS: ${{ github.event.inputs.livestream_ids || '' }}

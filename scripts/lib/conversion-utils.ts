@@ -8,7 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type { NostrEvent } from '@nostrify/nostrify';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
-import { NsecSigner, NsecBunkerSigner } from '@nostrify/nostrify';
+import { NsecSigner } from '@nostrify/nostrify';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -168,7 +168,7 @@ export async function combineAudioFiles(audioUrls: string[], outputFilename: str
 /**
  * Upload combined audio to Blossom servers
  */
-export async function uploadCombinedAudio(filepath: string, privateKey: string, bunkerUrl?: string): Promise<string> {
+export async function uploadCombinedAudio(filepath: string, privateKey: string): Promise<string> {
   console.log('☁️  Uploading combined audio to Blossom...');
 
   // Read file
@@ -177,12 +177,9 @@ export async function uploadCombinedAudio(filepath: string, privateKey: string, 
     type: 'audio/mpeg'
   });
 
-  // Create signer
-  const signer = bunkerUrl
-    ? new NsecBunkerSigner(bunkerUrl, privateKey)
-    : new NsecSigner(privateKey);
-
-  console.log('🔐 Using', bunkerUrl ? 'nsec bunker' : 'local', 'signing');
+  // Create signer using NSecSigner (local signing)
+  const signer = new NsecSigner(privateKey);
+  console.log('🔐 Using local NsecSigner');
 
   // Upload to Blossom
   const uploader = new BlossomUploader({
@@ -215,12 +212,7 @@ export async function uploadCombinedAudio(filepath: string, privateKey: string, 
 /**
  * Create signer for Nostr event signing
  */
-export function createSigner(privateKey: string, bunkerUrl?: string) {
-  if (bunkerUrl) {
-    console.log('🔐 Using nsec bunker for remote signing');
-    return new NsecBunkerSigner(bunkerUrl, privateKey);
-  }
-
+export function createSigner(privateKey: string) {
   console.log('🔐 Using local NsecSigner');
   return new NsecSigner(privateKey);
 }
