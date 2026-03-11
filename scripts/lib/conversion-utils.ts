@@ -8,7 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type { NostrEvent } from '@nostrify/nostrify';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
-import { NsecSigner } from '@nostrify/nostrify';
+import { NSecSigner } from '@nostrify/nostrify';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -178,8 +178,8 @@ export async function uploadCombinedAudio(filepath: string, privateKey: string):
   });
 
   // Create signer using NSecSigner (local signing)
-  const signer = new NsecSigner(privateKey);
-  console.log('🔐 Using local NsecSigner');
+  const signer = new NSecSigner(privateKey);
+  console.log('🔐 Using local NSecSigner');
 
   // Upload to Blossom
   const uploader = new BlossomUploader({
@@ -213,6 +213,6 @@ export async function uploadCombinedAudio(filepath: string, privateKey: string):
  * Create signer for Nostr event signing
  */
 export function createSigner(privateKey: string) {
-  console.log('🔐 Using local NsecSigner');
-  return new NsecSigner(privateKey);
+  console.log('🔐 Using local NSecSigner');
+  return new NSecSigner(privateKey);
 }
