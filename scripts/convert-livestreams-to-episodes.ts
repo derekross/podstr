@@ -78,19 +78,17 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
 
   // Create NPool for querying relays
   const relays = [
-    'wss://relay.primal.net',
-    'wss://relay.nostr.band',
-    'wss://relay.damus.io',
     'wss://nos.lol',
-    'wss://relay.ditto.pub',
   ];
 
   console.log(`📡 Attempting to connect to relays:`);
   relays.forEach((relay, i) => console.log(`   ${i + 1}. ${relay}`));
 
+  let connectionCount = 0;
   const pool = new NPool({
     open: (url) => {
-      console.log(`🔗 Connecting to relay: ${url}`);
+      connectionCount++;
+      console.log(`🔗 Connecting to relay (${connectionCount}/${relays.length}): ${url}`);
       return new NRelay1(url);
     },
     reqRouter: (filters) => new Map(
@@ -107,6 +105,8 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
     console.warn('⏰ Query timeout reached (60s), aborting...');
     controller.abort();
   }, 60000);
+
+  console.log('⏳ Waiting for relay responses...');
 
   try {
     const events = await pool.query([
@@ -157,16 +157,14 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
 
   // Create NPool for querying relays
   const relays = [
-    'wss://relay.primal.net',
-    'wss://relay.nostr.band',
-    'wss://relay.damus.io',
     'wss://nos.lol',
-    'wss://relay.ditto.pub',
   ];
 
+  let connectionCount = 0;
   const pool = new NPool({
     open: (url) => {
-      console.log(`🔗 Connecting to relay: ${url}`);
+      connectionCount++;
+      console.log(`🔗 Connecting to relay (${connectionCount}/${relays.length}): ${url}`);
       return new NRelay1(url);
     },
     reqRouter: (filters) => new Map(
@@ -180,6 +178,8 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
     console.warn('⏰ Query timeout reached (60s), aborting...');
     controller.abort();
   }, 60000);
+
+  console.log('⏳ Waiting for relay responses...');
 
   try {
     const events = await pool.query([
