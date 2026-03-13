@@ -226,7 +226,7 @@ async function createSingleEpisode(
   privateKey: string,
   nbunksec: string | undefined
 ): Promise<NostrEvent> {
-  const eventId = livestream.id.substring(0, 16);
+  const eventId = livestream.id;
   const dTag = livestream.tags.find(t => t[0] === 'd')?.[1] || 'unknown';
   const title = livestream.tags.find(([name]) => name === 'title')?.[1] || 'Untitled';
   console.log(`🔄 Creating single episode for event: ${eventId}... (${title})`);
@@ -429,7 +429,7 @@ async function main() {
     livestreams.forEach((stream, i) => {
       const d = stream.tags.find(t => t[0] === 'd')?.[1];
       const title = stream.tags.find(([name]) => name === 'title')?.[1];
-      console.log(`  ${i + 1}. Event ID: ${stream.id.substring(0, 16)}...`);
+      console.log(`  ${i + 1}. Event ID: ${stream.id}`);
       console.log(`     d: ${d}`);
       console.log(`     title: ${title || 'No title'}`);
       console.log(`     created_at: ${stream.created_at}`);
@@ -563,7 +563,7 @@ async function main() {
       console.log('📊 Processing in single mode...');
 
       for (const livestream of livestreams) {
-        const eventId = livestream.id.substring(0, 16);
+        const eventId = livestream.id;
         const dTag = livestream.tags.find(t => t[0] === 'd')?.[1] || 'unknown';
         const title = livestream.tags.find(([name]) => name === 'title')?.[1] || 'Untitled';
         console.log(`\\n📌 Processing event: ${eventId} (d: ${dTag}, title: "${title}")`);
