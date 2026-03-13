@@ -153,9 +153,12 @@ async function fetchExistingEpisodes(_targetNpub: string): Promise<NostrEvent[]>
  */
 async function createBatchEpisode(
   livestreams: NostrEvent[],
-  privateKey: string
+  privateKey: string,
+  nbunksec: string | undefined
 ): Promise<NostrEvent> {
   console.log(`🔄 Creating batch episode from ${livestreams.length} livestreams`);
+  const eventIds = livestreams.map(e => e.id.substring(0, 8)).join(', ');
+  console.log(`📋 Event IDs: ${eventIds}`);
 
   // Extract recording URLs
   const audioUrls = livestreams
@@ -173,7 +176,7 @@ async function createBatchEpisode(
   );
 
   // Upload combined audio to Blossom
-  const combinedAudioUrl = await uploadCombinedAudio(combinedFilepath, privateKey, config.nbunksec);
+  const combinedAudioUrl = await uploadCombinedAudio(combinedFilepath, privateKey, nbunksec);
 
   // Generate title from first livestream
   const firstStream = livestreams[0];
@@ -218,9 +221,13 @@ async function createBatchEpisode(
  */
 async function createSingleEpisode(
   livestream: NostrEvent,
-  privateKey: string
+  privateKey: string,
+  nbunksec: string | undefined
 ): Promise<NostrEvent> {
-  console.log('🔄 Creating single episode...');
+  const eventId = livestream.id.substring(0, 16);
+  const dTag = livestream.tags.find(t => t[0] === 'd')?.[1] || 'unknown';
+  const title = livestream.tags.find(([name]) => name === 'title')?.[1] || 'Untitled';
+  console.log(`🔄 Creating single episode for event: ${eventId}... (${title})`);
 
   // Extract recording URL
   const audioUrl = extractRecordingUrl(livestream);
@@ -229,13 +236,11 @@ async function createSingleEpisode(
   }
 
   // Generate metadata
-  const title = livestream.tags.find(([name]) => name === 'title')?.[1] || 'Untitled Episode';
   const summary = livestream.tags.find(([name]) => name === 'summary')?.[1] || '';
   const image = livestream.tags.find(([name]) => name === 'image')?.[1] || '';
-  const dTag = livestream.tags.find(t => t[0] === 'd')?.[1] || `episode-${Date.now()}`;
 
   // Create signer
-  const signer = createSigner(privateKey, config.nbunksec);
+  const signer = createSigner(privateKey, nbunksec);
 
   const event = await signer.signEvent({
     kind: 30054,
@@ -330,6 +335,18 @@ async function main() {
       process.exit(1);
     }
 
+    // Log fetched livestreams
+    console.log('\\n📝 Fetched livestreams:');
+    livestreams.forEach((stream, i) => {
+      const d = stream.tags.find(t => t[0] === 'd')?.[1];
+      const title = stream.tags.find(([name]) => name === 'title')?.[1];
+      console.log(`  ${i + 1}. Event ID: ${stream.id.substring(0, 16)}...`);
+      console.log(`     d: ${d}`);
+      console.log(`     title: ${title || 'No title'}`);
+      console.log(`     created_at: ${stream.created_at}`);
+    });
+    console.log('');
+
     if (livestreams.length === 0) {
       console.error('❌ No livestreams found - this may indicate an issue with:');
       console.error('   1. The LIVESTREAM_AUTHOR_NPUB secret is incorrect');
@@ -367,6 +384,9 @@ async function main() {
 
       // Process each group
       for (const group of groups) {
+        const groupEventIds = group.map(g => g.id.substring(0, 8)).join(', ');
+        console.log(`\\n📦 Processing batch group of ${group.length} event(s): ${groupEventIds}`);
+
         try {
           // Check if any livestream in group has been converted
           const hasConverted = group.some(stream => isLivestreamConverted(stream, existingEpisodes));
@@ -406,7 +426,7 @@ async function main() {
           }
 
           // Create batch episode
-          const episode = await createBatchEpisode(group, config.nostrPrivateKey);
+          const episode = await createBatchEpisode(group, config.nostrPrivateKey, config.nbunksec);
 
           // Publish to Nostr
           await publishEpisode(episode);
@@ -437,7 +457,7 @@ async function main() {
           state.lastProcessedTimestamp = now;
         }
         catch (error) {
-          console.error('❌ Failed to process group:', error);
+          console.error(`❌ Failed to process group (event IDs: ${groupEventIds}):`, error);
           failedCount.value += group.length;
           group.forEach(stream => {
             summaries.push({
@@ -454,6 +474,11 @@ async function main() {
       console.log('📊 Processing in single mode...');
 
       for (const livestream of livestreams) {
+        const eventId = livestream.id.substring(0, 16);
+        const dTag = livestream.tags.find(t => t[0] === 'd')?.[1] || 'unknown';
+        const title = livestream.tags.find(([name]) => name === 'title')?.[1] || 'Untitled';
+        console.log(`\\n📌 Processing event: ${eventId} (d: ${dTag}, title: "${title}")`);
+
         try {
           // Check if already converted
           if (isLivestreamConverted(livestream, existingEpisodes)) {
@@ -483,7 +508,7 @@ async function main() {
           }
 
           // Create single episode
-          const episode = await createSingleEpisode(livestream, config.nostrPrivateKey);
+          const episode = await createSingleEpisode(livestream, config.nostrPrivateKey, config.nbunksec);
 
           // Publish to Nostr
           await publishEpisode(episode);
@@ -508,7 +533,7 @@ async function main() {
           state.lastProcessedTimestamp = Math.floor(Date.now() / 1000);
         }
         catch (error) {
-          console.error('❌ Failed to process livestream:', error);
+          console.error(`❌ Failed to process livestream (event ID: ${eventId}):`, error);
           failedCount.value++;
           summaries.push({
             livestreamAddress: `${livestream.pubkey}:${livestream.tags.find(t => t[0] === 'd')?.[1]}`,
