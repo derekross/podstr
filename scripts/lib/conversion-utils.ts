@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { NSecSigner, BlossomUploader } from '@nostrify/nostrify';
+import { NSecSigner } from '@nostrify/nostrify';
+import { BlossomUploader } from '@nostrify/nostrify/uploaders';
 import { NSyteBunkerSigner } from './nsyte-bunker-minimal';
 import type { NostrEvent } from '@nostrify/nostrify';
 
