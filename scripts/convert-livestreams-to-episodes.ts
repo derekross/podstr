@@ -98,6 +98,7 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
 
   console.log(`📡 Querying relays for kind 30311 livestreams from pubkey: ${targetPubkey.substring(0, 8)}...`);
   console.log(`📋 Using 'since' timestamp: ${since} (${new Date(since * 1000).toISOString()})`);
+  console.log(`💡 Skipping 'since' parameter to get ALL events (may take longer)...`);
 
   // Query for kind 30311 livestreams with timeout
   const controller = new AbortController();
@@ -113,7 +114,7 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
       {
         kinds: [30311],
         authors: [targetPubkey],
-        since,
+        // Don't use 'since' parameter to get recent events
         limit: 20, // Reduced from 100 to 20 for faster queries
       }
     ], { signal: controller.signal });
@@ -186,6 +187,7 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
       {
         kinds: [30054],
         authors: [targetPubkey],
+        // Don't use 'since' parameter to get recent episodes
         limit: 200, // Get more episodes for duplicate checking
       }
     ], { signal: controller.signal });
