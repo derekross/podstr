@@ -289,7 +289,7 @@ async function publishEpisode(event: NostrEvent): Promise<void> {
   const TIMEOUT_MS = 30_000; // 30 second timeout for publish
 
   try {
-    const relay = new NRelay1(relayUrl);
+    // Direct relay.event() call - no Promise.race
     console.log(`   Relay created, ready to publish`);
 
     // Monitor relay state before publishing
