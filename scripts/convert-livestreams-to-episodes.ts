@@ -271,11 +271,15 @@ async function createSingleEpisode(
  */
 async function publishEpisode(event: NostrEvent): Promise<void> {
   console.log('📡 Publishing episode to Nostr (nos.lol only)...');
-  console.log(`   Event ID: ${event.id.substring(0, 16)}...`);
-  console.log(`   Event d-tag: ${event.tags.find(t => t[0] === 'd')?.[1] || 'unknown'}`);
+  console.log(`   ========== RAW EVENT TO PUBLISH ==========`);
+  console.log(JSON.stringify(event, null, 2));
+  console.log(`   ==============================================`);
+  console.log(`   Event ID: ${event.id}`);
   console.log(`   Event kind: ${event.kind}`);
+  console.log(`   Event pubkey: ${event.pubkey}`);
   console.log(`   Event created_at: ${event.created_at}`);
-  console.log(`   Tags: ${JSON.stringify(event.tags).substring(0, 200)}...`);
+  console.log(`   Number of tags: ${event.tags.length}`);
+  console.log(`   About to call relay.event()...`);
 
   // Only publish to nos.lol for now (simpler debugging)
   const relayUrl = 'wss://nos.lol';
