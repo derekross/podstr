@@ -16,7 +16,6 @@ import { Console } from 'console';
 import type { NostrEvent } from '@nostrify/nostrify';
 import { NRelay1 } from '@nostrify/nostrify';
 import { nip19 } from 'nostr-tools';
-import { WebSocket } from 'ws';
 import type {
   LivestreamConversionConfig,
   LivestreamConversionSummary,
@@ -107,10 +106,24 @@ async function fetchLivestreams(_targetNpub: string, _since: number): Promise<No
 /**
  * Fetch existing episodes for duplicate detection
  */
-async function fetchExistingEpisodes(_targetNpub: string, episodeAuthorPubkey: string): Promise<NostrEvent[]> {
+async function fetchExistingEpisodes(_targetNpub: string): Promise<NostrEvent[]> {
   console.log('🔍 Fetching existing episodes for duplicate detection...');
 
-  console.log(`📋 Episode author pubkey: ${episodeAuthorPubkey.substring(0, 8)}...`);
+  // Decode npub to hex
+  let targetPubkey: string;
+  try {
+    const decoded = nip19.decode(_targetNpub);
+    if (decoded.type === 'npub') {
+      targetPubkey = decoded.data;
+    } else {
+      throw new Error('Invalid npub format');
+    }
+  } catch (error) {
+    console.error('❌ Failed to decode npub:', error);
+    throw error;
+  }
+
+  console.log(`📋 Host pubkey (p tag): ${targetPubkey.substring(0, 8)}...`);
 
   // Query nos.lol directly using WebSocket
   const relayUrl = 'wss://nos.lol';
@@ -121,7 +134,7 @@ async function fetchExistingEpisodes(_targetNpub: string, episodeAuthorPubkey: s
   try {
     const events = await queryRelay(relayUrl, {
       kinds: [30054],
-      authors: [episodeAuthorPubkey], // Filter by episode author pubkey
+      '#p': [targetPubkey], // Filter by host p tag for consistency
       limit: 200,
     });
 
@@ -178,10 +191,10 @@ async function createBatchEpisode(
   });
 
   // Create signer
-  const signerInfo = createSigner(privateKey, nbunksec);
+  const signer = createSigner(privateKey, config.nbunksec);
   const dTag = `batch-livestreams-${Date.now()}`;
 
-  const event = await signerInfo.signer.signEvent({
+  const event = await signer.signEvent({
     kind: 30054,
     content: '',
     created_at: Math.floor(Date.now() / 1000), // Current timestamp
@@ -212,7 +225,7 @@ async function createSingleEpisode(
   privateKey: string,
   nbunksec: string | undefined
 ): Promise<NostrEvent> {
-  const eventId = livestream.id;
+  const eventId = livestream.id.substring(0, 16);
   const dTag = livestream.tags.find(t => t[0] === 'd')?.[1] || 'unknown';
   const title = livestream.tags.find(([name]) => name === 'title')?.[1] || 'Untitled';
   console.log(`🔄 Creating single episode for event: ${eventId}... (${title})`);
@@ -228,9 +241,9 @@ async function createSingleEpisode(
   const image = livestream.tags.find(([name]) => name === 'image')?.[1] || '';
 
   // Create signer
-  const signerInfo = createSigner(privateKey, nbunksec);
+  const signer = createSigner(privateKey, nbunksec);
 
-  const event = await signerInfo.signer.signEvent({
+  const event = await signer.signEvent({
     kind: 30054,
     content: '',
     created_at: Math.floor(Date.now() / 1000), // Current timestamp
@@ -254,7 +267,7 @@ async function createSingleEpisode(
 }
 
 /**
- * Publish episode to Nostr using direct WebSocket with explicit timeout
+ * Publish episode to Nostr
  */
 async function publishEpisode(event: NostrEvent): Promise<void> {
   console.log('📡 Publishing episode to Nostr (nos.lol only)...');
@@ -266,98 +279,44 @@ async function publishEpisode(event: NostrEvent): Promise<void> {
   console.log(`   Event pubkey: ${event.pubkey}`);
   console.log(`   Event created_at: ${event.created_at}`);
   console.log(`   Number of tags: ${event.tags.length}`);
+  console.log(`   About to call relay.event()...`);
 
+  // Only publish to nos.lol for now (simpler debugging)
   const relayUrl = 'wss://nos.lol';
-  const TIMEOUT_MS = 30_000;
+
+  console.log(`   Connecting to relay: ${relayUrl}`);
   const startTime = Date.now();
+  const TIMEOUT_MS = 30_000; // 30 second timeout for publish
 
-  return new Promise<void>((resolve, reject) => {
-    console.log(`   Connecting to ${relayUrl} with ${TIMEOUT_MS}ms timeout...`);
+  try {
+    const relay = new NRelay1(relayUrl);
+    console.log(`   Relay created, ready to publish`);
 
-    let ws: WebSocket | null = null;
-    let timeoutId: NodeJS.Timeout | null = null;
+    // Monitor relay state before publishing
+    console.log(`   Relay socket state: ${relay.socket ? 'connected' : 'not connected'}`);
 
-    // Set timeout
-    timeoutId = setTimeout(() => {
-      console.error(`   ❌ Timeout after ${TIMEOUT_MS}ms`);
-      if (ws) {
-        ws.close();
-      }
-      reject(new Error(`Publish timeout after ${TIMEOUT_MS}ms`));
-    }, TIMEOUT_MS);
+    // Create timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Publish timeout after ${TIMEOUT_MS}ms`));
+      }, TIMEOUT_MS);
+    });
 
-    try {
-      ws = new WebSocket(relayUrl);
+    // Race between publish and timeout
+    const signedEvent = await Promise.race([
+      relay.event(event),
+      timeoutPromise
+    ]);
 
-      ws.on('open', () => {
-        console.log(`   WebSocket connected, sending EVENT message...`);
-
-        // Send the event
-        const eventMsg = JSON.stringify(['EVENT', event]);
-        ws.send(eventMsg);
-
-        console.log(`   EVENT message sent, waiting for OK response...`);
-      });
-
-      ws.on('message', (data: Buffer) => {
-        const message = JSON.parse(data.toString());
-        console.log(`   Received message:`, message);
-
-        if (message[0] === 'OK') {
-          const eventId = message[1];
-          const success = message[2];
-          const msg = message[3];
-
-          if (success) {
-            console.log(`   ✅ Event accepted by relay! Event ID: ${eventId}`);
-            console.log(`   Publish completed in ${Date.now() - startTime}ms`);
-
-            // Clear timeout and close connection
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-            }
-            if (ws) {
-              ws.close();
-            }
-            resolve();
-          } else {
-            console.error(`   ❌ Event rejected by relay: ${msg}`);
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-            }
-            if (ws) {
-              ws.close();
-            }
-            reject(new Error(`Event rejected by relay: ${msg}`));
-          }
-        }
-      });
-
-      ws.on('error', (error: Error) => {
-        console.error(`   ❌ WebSocket error:`, error.message);
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        if (ws) {
-          ws.close();
-        }
-        reject(error);
-      });
-
-      ws.on('close', () => {
-        console.log(`   WebSocket connection closed`);
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-      });
-    } catch (error) {
-      console.error(`   ❌ Failed to create WebSocket:`, error);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      reject(error);
+    console.log(`   ✅ Published successfully! Event ID: ${signedEvent.id}`);
+    console.log(`   Publish completed in ${Date.now() - startTime}ms`);
+  } catch (error) {
+    console.error(`   ❌ Failed to publish:`, error instanceof Error ? error.message : String(error));
+    if (error instanceof Error) {
+      console.error(`   Error stack:`, error.stack);
     }
-  });
+    throw error;
+  }
 }
 
 /**
@@ -395,21 +354,6 @@ async function main() {
   console.log('  - Relays: wss://relay.primal.net, wss://relay.nostr.band, wss://relay.damus.io, wss://nos.lol, wss://relay.ditto.pub');
 
   try {
-    // Create signer first to get the episode author pubkey
-    const signerInfo = createSigner(config.nostrPrivateKey, config.nbunksec);
-    console.log('🔑 Episode author pubkey:', signerInfo.pubkey.substring(0, 8) + '...');
-
-    // Decode target npub for error messages
-    let targetPubkey = '';
-    try {
-      const decoded = nip19.decode(config.targetNpub);
-      if (decoded.type === 'npub') {
-        targetPubkey = decoded.data;
-      }
-    } catch (error) {
-      console.warn('⚠️  Failed to decode target npub:', error);
-    }
-
     // Load state
     const state = await loadConversionState();
     console.log('📂 Last processed timestamp:', new Date(state.lastProcessedTimestamp * 1000).toISOString());
@@ -430,7 +374,7 @@ async function main() {
     livestreams.forEach((stream, i) => {
       const d = stream.tags.find(t => t[0] === 'd')?.[1];
       const title = stream.tags.find(([name]) => name === 'title')?.[1];
-      console.log(`  ${i + 1}. Event ID: ${stream.id}`);
+      console.log(`  ${i + 1}. Event ID: ${stream.id.substring(0, 16)}...`);
       console.log(`     d: ${d}`);
       console.log(`     title: ${title || 'No title'}`);
       console.log(`     created_at: ${stream.created_at}`);
@@ -452,7 +396,7 @@ async function main() {
     console.log('🔍 Fetching existing episodes for duplicate detection...');
     let existingEpisodes: NostrEvent[];
     try {
-      existingEpisodes = await fetchExistingEpisodes(config.targetNpub, signerInfo.pubkey);
+      existingEpisodes = await fetchExistingEpisodes(config.targetNpub);
     } catch (error) {
       console.error('❌ Failed to fetch existing episodes:', error instanceof Error ? error.message : error);
       console.error('💡 This may be due to relay connectivity issues. Try again later or check relay status.');
@@ -564,7 +508,7 @@ async function main() {
       console.log('📊 Processing in single mode...');
 
       for (const livestream of livestreams) {
-        const eventId = livestream.id;
+        const eventId = livestream.id.substring(0, 16);
         const dTag = livestream.tags.find(t => t[0] === 'd')?.[1] || 'unknown';
         const title = livestream.tags.find(([name]) => name === 'title')?.[1] || 'Untitled';
         console.log(`\\n📌 Processing event: ${eventId} (d: ${dTag}, title: "${title}")`);

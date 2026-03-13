@@ -6,6 +6,7 @@ import { NSecSigner } from '@nostrify/nostrify';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
 import { NSyteBunkerSigner } from './nsyte-bunker-minimal';
 import type { NostrEvent } from '@nostrify/nostrify';
+import { getPublicKey } from 'nostr-tools';
 
 export function extractRecordingUrl(livestream: NostrEvent): string | null {
   const download = livestream.tags.find(([name]) => name === 'download')?.[1];
@@ -194,7 +195,10 @@ export function createSigner(privateKey: string | undefined, nbunksec?: string) 
   if (nbunksec) {
     console.log('🔐 Using nsyte bunker for remote signing');
     const [bunkerUrl, _rest] = nbunksec.split('?');
-    return new NSyteBunkerSigner(bunkerUrl, nbunksec);
+    return {
+      signer: new NSyteBunkerSigner(bunkerUrl, nbunksec),
+      pubkey: '', // Will be filled by the bunker on connection
+    };
   }
   if (!privateKey) {
     throw new Error('Private key is required when not using nbunksec');
@@ -217,5 +221,9 @@ export function createSigner(privateKey: string | undefined, nbunksec?: string) 
   }
 
   console.log('🔐 Using local NSecSigner');
-  return new NSecSigner(hexPrivateKey);
+  const pubkey = getPublicKey(hexPrivateKey);
+  return {
+    signer: new NSecSigner(hexPrivateKey),
+    pubkey,
+  };
 }
