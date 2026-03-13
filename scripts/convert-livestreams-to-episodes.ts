@@ -197,6 +197,7 @@ async function createBatchEpisode(
   const event = await signer.signEvent({
     kind: 30054,
     content: '',
+    created_at: Math.floor(Date.now() / 1000), // Current timestamp
     tags: [
       ['d', dTag],
       ['title', title],
@@ -245,6 +246,7 @@ async function createSingleEpisode(
   const event = await signer.signEvent({
     kind: 30054,
     content: '',
+    created_at: Math.floor(Date.now() / 1000), // Current timestamp
     tags: [
       ['d', dTag],
       ['title', title],
