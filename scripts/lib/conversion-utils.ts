@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import type { NostrEvent } from '@nostrify/nostrify';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
 import { NSecSigner } from '@nostrify/nostrify';
+import { NSyteBunkerSigner } from './nsyte-bunker';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -168,7 +169,7 @@ export async function combineAudioFiles(audioUrls: string[], outputFilename: str
 /**
  * Upload combined audio to Blossom servers
  */
-export async function uploadCombinedAudio(filepath: string, privateKey: string): Promise<string> {
+export async function uploadCombinedAudio(filepath: string, privateKey: string, nbunksec?: string): Promise<string> {
   console.log('☁️  Uploading combined audio to Blossom...');
 
   // Read file
@@ -177,9 +178,16 @@ export async function uploadCombinedAudio(filepath: string, privateKey: string):
     type: 'audio/mpeg'
   });
 
-  // Create signer using NSecSigner (local signing)
-  const signer = new NSecSigner(privateKey);
-  console.log('🔐 Using local NSecSigner');
+  // Create signer
+  let signer;
+  if (nbunksec) {
+    console.log('🔐 Using nsyte bunker for remote signing');
+    const [bunkerUrl, _rest] = nbunksec.split('?');
+    signer = new NSyteBunkerSigner(bunkerUrl, privateKey);
+  } else {
+    console.log('🔐 Using local NSecSigner');
+    signer = new NSecSigner(privateKey);
+  }
 
   // Upload to Blossom
   const uploader = new BlossomUploader({

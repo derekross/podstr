@@ -174,7 +174,7 @@ async function createBatchEpisode(
   );
 
   // Upload combined audio to Blossom
-  const combinedAudioUrl = await uploadCombinedAudio(combinedFilepath, privateKey);
+  const combinedAudioUrl = await uploadCombinedAudio(combinedFilepath, privateKey, config.nbunksec);
 
   // Generate title from first livestream
   const firstStream = livestreams[0];
@@ -189,7 +189,7 @@ async function createBatchEpisode(
   });
 
   // Create signer
-  const signer = createSigner(privateKey);
+  const signer = createSigner(privateKey, config.nbunksec);
   const dTag = `batch-livestreams-${Date.now()}`;
 
   const event = await signer.signEvent({
@@ -236,7 +236,7 @@ async function createSingleEpisode(
   const dTag = livestream.tags.find(t => t[0] === 'd')?.[1] || `episode-${Date.now()}`;
 
   // Create signer
-  const signer = createSigner(privateKey);
+  const signer = createSigner(privateKey, config.nbunksec);
 
   const event = await signer.signEvent({
     kind: 30054,
@@ -295,6 +295,7 @@ async function main() {
     batchMode: args.batchMode || process.env.BATCH_MODE === 'true',
     livestreamIds: args.livestreamIds || process.env.LIVESTREAM_IDS,
     nostrPrivateKey: process.env.NOSTR_PRIVATE_KEY!,
+    nbunksec: process.env.NBUNKSEC,
     targetNpub: process.env.LIVESTREAM_AUTHOR_NPUB!,
   };
 

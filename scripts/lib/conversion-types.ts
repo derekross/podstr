@@ -11,6 +11,7 @@ export interface LivestreamConversionConfig {
   batchMode: boolean;
   livestreamIds?: string;
   nostrPrivateKey: string;
+  nbunksec?: string;
   targetNpub: string;
 }
 

@@ -13,6 +13,7 @@ on:
         description: 'Comma-separated livestream d-tag identifiers (optional, for manual selection)'
         required: false
         type: string
+  push:
 
   # Scheduled check (once daily at 2 AM UTC)
   schedule:
@@ -46,6 +47,7 @@ jobs:
       - name: Convert livestreams to episodes
         env:
           NOSTR_PRIVATE_KEY: ${{ secrets.NOSTR_PRIVATE_KEY }}
+          NBUNKSEC: ${{ secrets.NBUNKSEC }}
           LIVESTREAM_AUTHOR_NPUB: ${{ secrets.LIVESTREAM_AUTHOR_NPUB }}
           BATCH_MODE: ${{ github.event.inputs.batch_mode || 'false' }}
           LIVESTREAM_IDS: ${{ github.event.inputs.livestream_ids || '' }}
