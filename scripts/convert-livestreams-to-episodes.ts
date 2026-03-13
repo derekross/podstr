@@ -331,8 +331,14 @@ async function main() {
     }
 
     if (livestreams.length === 0) {
-      console.log('✅ No new livestreams to process');
-      return;
+      console.error('❌ No livestreams found - this may indicate an issue with:');
+      console.error('   1. The LIVESTREAM_AUTHOR_NPUB secret is incorrect');
+      console.error('   2. The relay (nos.lol) does not have events from this pubkey');
+      console.error('   3. Network connectivity issues');
+      console.error('');
+      console.error(`📋 Currently querying for npub: ${config.targetNpub}`);
+      console.error(`📋 Decoded pubkey: ${targetPubkey}`);
+      process.exit(1);
     }
 
     // Fetch existing episodes for duplicate detection
