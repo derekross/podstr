@@ -662,10 +662,11 @@ async function main() {
 
     if (failedCount.value === 0) {
       console.log('\n✅ All conversions successful!');
+    } else if (convertedCount.value === 0) {
+      console.log('\n⚠️  All conversions failed or skipped.');
     } else {
-      console.log('\n⚠️  Some conversions failed. Check logs for details.');
-      process.exit(1);
-  }
+      console.log(`\n⚠️  ${failedCount.value} conversion(s) failed, ${convertedCount.value} succeeded. Continuing to update RSS feed...`);
+    }
   } catch (error) {
     console.error('\n❌ Fatal error during conversion:', error);
     process.exit(1);
