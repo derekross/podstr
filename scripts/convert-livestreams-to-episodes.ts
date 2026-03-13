@@ -16,6 +16,7 @@ import { Console } from 'console';
 import type { NostrEvent } from '@nostrify/nostrify';
 import { NRelay1 } from '@nostrify/nostrify';
 import { nip19 } from 'nostr-tools';
+import { WebSocket } from 'ws';
 import type {
   LivestreamConversionConfig,
   LivestreamConversionSummary,
@@ -300,7 +301,6 @@ async function publishEpisode(event: NostrEvent): Promise<void> {
     }, TIMEOUT_MS);
 
     try {
-      const WebSocket = require('ws');
       ws = new WebSocket(relayUrl);
 
       ws.on('open', () => {
