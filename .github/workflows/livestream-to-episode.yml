@@ -42,7 +42,6 @@ jobs:
       - name: Install ffmpeg
         if: env.BATCH_MODE == 'true'
         run: |
-          sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
         env:
           BATCH_MODE: ${{ github.event.inputs.batch_mode == 'true' || 'false' }}
