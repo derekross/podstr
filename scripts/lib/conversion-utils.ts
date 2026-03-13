@@ -1,39 +1,22 @@
-/**
- * Utility functions for livestream-to-episode conversion
- */
-
-import { exec } from 'child_process';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { NSecSigner, BlossomUploader } from '@nostrify/nostrify';
+import { NSyteBunkerSigner } from './nsyte-bunker-minimal';
 import type { NostrEvent } from '@nostrify/nostrify';
-import { BlossomUploader } from '@nostrify/nostrify/uploaders';
-import { NSecSigner } from '@nostrify/nostrify';
-import { NSyteBunkerSigner } from './nsyte-bunker';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-/**
- * Extract Shoshou recording URL from livestream event
- * Priority: download > recording > streaming
- */
 export function extractRecordingUrl(livestream: NostrEvent): string | null {
-  // Priority 1: Use 'download' tag (Shoshou recording - highest quality)
   const download = livestream.tags.find(([name]) => name === 'download')?.[1];
   if (download) {
     console.log('✅ Found download tag (Shoshou recording):', download);
     return download;
   }
 
-  // Priority 2: Use 'recording' tag (Shoshou recording)
   const recording = livestream.tags.find(([name]) => name === 'recording')?.[1];
   if (recording) {
     console.log('✅ Found recording tag:', recording);
     return recording;
   }
 
-  // Priority 3: Use 'streaming' tag (original stream, lower quality)
   const streaming = livestream.tags.find(([name]) => name === 'streaming')?.[1];
   if (streaming) {
     console.warn('⚠️  Using streaming URL instead of recording (quality may be poor):', streaming);
@@ -44,9 +27,6 @@ export function extractRecordingUrl(livestream: NostrEvent): string | null {
   return null;
 }
 
-/**
- * Check if livestream should be skipped
- */
 export function shouldSkipLivestream(livestream: NostrEvent): { skip: boolean, reason?: string } {
   const status = livestream.tags.find(([name]) => name === 'status')?.[1];
 
@@ -66,9 +46,6 @@ export function shouldSkipLivestream(livestream: NostrEvent): { skip: boolean, r
   return { skip: false };
 }
 
-/**
- * Check if livestream has already been converted
- */
 export function isLivestreamConverted(livestream: NostrEvent, existingEpisodes: NostrEvent[]): boolean {
   const dTag = livestream.tags.find(([name]) => name === 'd')?.[1];
   if (!dTag) return false;
@@ -81,9 +58,6 @@ export function isLivestreamConverted(livestream: NostrEvent, existingEpisodes: 
   });
 }
 
-/**
- * Group livestreams by hour for batch conversion
- */
 export function groupLivestreamsForBatch(livestreams: NostrEvent[]): Record<string, NostrEvent[]> {
   const byHour: Record<string, NostrEvent[]> = {};
 
@@ -105,70 +79,6 @@ export function groupLivestreamsForBatch(livestreams: NostrEvent[]): Record<stri
   return byHour;
 }
 
-/**
- * Combine audio files using ffmpeg
- */
-export async function combineAudioFiles(audioUrls: string[], outputFilename: string): Promise<string> {
-  console.log(`🎵 Combining ${audioUrls.length} audio files...`);
-
-  // Create temp directory
-  const tempDir = path.join(__dirname, '..', '.temp-audio');
-  await fs.mkdir(tempDir, { recursive: true });
-
-  // Download audio files
-  const audioFiles: string[] = [];
-  for (let i = 0; i < audioUrls.length; i++) {
-    const url = audioUrls[i];
-    const filename = `audio-${i}.mp3`;
-    const filepath = path.join(tempDir, filename);
-
-    console.log(`📥 Downloading: ${url}`);
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to download audio: ${response.statusText} (${response.status})`);
-      }
-
-      const buffer = await response.arrayBuffer();
-      await fs.writeFile(filepath, Buffer.from(buffer));
-      audioFiles.push(filepath);
-      console.log(`✅ Downloaded: ${filepath}`);
-    } catch (error) {
-      console.error(`❌ Failed to download audio from ${url}:`, error);
-      throw error;
-    }
-  }
-
-  // Create input list file for ffmpeg
-  const listFilePath = path.join(tempDir, 'concat-list.txt');
-  const listContent = audioFiles.map(f => `file '${f}'`).join('\n');
-  await fs.writeFile(listFilePath, listContent);
-
-  // Combine audio using ffmpeg
-  const outputPath = path.join(tempDir, outputFilename);
-  const ffmpegCmd = `ffmpeg -f concat -safe 0 -i "${listFilePath}" -c copy "${outputPath}"`;
-
-  console.log(`🎬 Running ffmpeg...`);
-  await new Promise<void>((resolve, reject) => {
-    exec(ffmpegCmd, (error, stdout, stderr) => {
-      if (error) {
-        console.error('❌ FFmpeg error:', stderr);
-        reject(error);
-      } else {
-        console.log('✅ FFmpeg output:', stdout.trim());
-        resolve();
-      }
-    });
-  });
-
-  console.log(`✅ Combined audio saved to: ${outputPath}`);
-
-  return outputPath;
-}
-
-/**
- * Upload combined audio to Blossom servers
- */
 export async function uploadCombinedAudio(filepath: string, privateKey: string, nbunksec?: string): Promise<string> {
   console.log('☁️  Uploading combined audio to Blossom...');
 
@@ -212,15 +122,16 @@ export async function uploadCombinedAudio(filepath: string, privateKey: string, 
     return url;
   } catch (error) {
     console.error('❌ Blossom upload failed:', error);
-    // Don't cleanup on error so user can manually upload if needed
     throw new Error(`Blossom upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
-/**
- * Create signer for Nostr event signing
- */
-export function createSigner(privateKey: string) {
+export function createSigner(privateKey: string, nbunksec?: string) {
+  if (nbunksec) {
+    console.log('🔐 Using nsyte bunker for remote signing');
+    const [bunkerUrl, _rest] = nbunksec.split('?');
+    return new NSyteBunkerSigner(bunkerUrl, privateKey);
+  }
   console.log('🔐 Using local NSecSigner');
   return new NSecSigner(privateKey);
 }
