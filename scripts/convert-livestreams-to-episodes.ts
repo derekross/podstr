@@ -92,17 +92,33 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
   console.log(`📋 Using 'since' timestamp: ${since} (${new Date(since * 1000).toISOString()})`);
 
   // Query for kind 30311 livestreams with timeout
-  const signal = AbortSignal.timeout(60000); // 60 second timeout
-  const events = await pool.query([
-    {
-      kinds: [30311],
-      authors: [targetPubkey],
-      since,
-      limit: 100,
-    }
-  ], { signal });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.warn('⏰ Query timeout reached (60s), aborting...');
+    controller.abort();
+  }, 60000);
 
-  console.log(`✅ Found ${events.length} livestream(s) from relays`);
+  try {
+    const events = await pool.query([
+      {
+        kinds: [30311],
+        authors: [targetPubkey],
+        since,
+        limit: 100,
+      }
+    ], { signal: controller.signal });
+
+    clearTimeout(timeoutId);
+    console.log(`✅ Found ${events.length} livestream(s) from relays`);
+    return events;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Query timed out after 60 seconds - relays may be unreachable');
+    }
+    console.error('❌ Error querying relays:', error instanceof Error ? error.message : error);
+    throw error;
+  }
 
   return events;
 }
@@ -142,16 +158,32 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
   });
 
   // Query for kind 30054 episodes with timeout
-  const signal = AbortSignal.timeout(60000); // 60 second timeout
-  const events = await pool.query([
-    {
-      kinds: [30054],
-      authors: [targetPubkey],
-      limit: 200, // Get more episodes for duplicate checking
-    }
-  ], { signal });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.warn('⏰ Query timeout reached (60s), aborting...');
+    controller.abort();
+  }, 60000);
 
-  console.log(`✅ Found ${events.length} existing episode(s) from relays`);
+  try {
+    const events = await pool.query([
+      {
+        kinds: [30054],
+        authors: [targetPubkey],
+        limit: 200, // Get more episodes for duplicate checking
+      }
+    ], { signal: controller.signal });
+
+    clearTimeout(timeoutId);
+    console.log(`✅ Found ${events.length} existing episode(s) from relays`);
+    return events;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Query timed out after 60 seconds - relays may be unreachable');
+    }
+    console.error('❌ Error querying relays:', error instanceof Error ? error.message : error);
+    throw error;
+  }
 
   return events;
 }
@@ -328,7 +360,15 @@ async function main() {
     console.log('📂 Last processed timestamp:', new Date(state.lastProcessedTimestamp * 1000).toISOString());
 
     // Fetch livestreams
-    const livestreams = await fetchLivestreams(config.targetNpub, state.lastProcessedTimestamp);
+    console.log('🔍 Fetching livestreams from Nostr...');
+    let livestreams: NostrEvent[];
+    try {
+      livestreams = await fetchLivestreams(config.targetNpub, state.lastProcessedTimestamp);
+    } catch (error) {
+      console.error('❌ Failed to fetch livestreams:', error instanceof Error ? error.message : error);
+      console.error('💡 This may be due to relay connectivity issues. Try again later or check relay status.');
+      process.exit(1);
+    }
 
     if (livestreams.length === 0) {
       console.log('✅ No new livestreams to process');
@@ -336,7 +376,15 @@ async function main() {
     }
 
     // Fetch existing episodes for duplicate detection
-    const existingEpisodes = await fetchExistingEpisodes(config.targetNpub);
+    console.log('🔍 Fetching existing episodes for duplicate detection...');
+    let existingEpisodes: NostrEvent[];
+    try {
+      existingEpisodes = await fetchExistingEpisodes(config.targetNpub);
+    } catch (error) {
+      console.error('❌ Failed to fetch existing episodes:', error instanceof Error ? error.message : error);
+      console.error('💡 This may be due to relay connectivity issues. Try again later or check relay status.');
+      process.exit(1);
+    }
 
     // Process livestreams
     const summaries: LivestreamConversionSummary[] = [];
