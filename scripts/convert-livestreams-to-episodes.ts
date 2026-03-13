@@ -88,7 +88,11 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
     ]),
   });
 
-  // Query for kind 30311 livestreams
+  console.log(`📡 Querying relays for kind 30311 livestreams from pubkey: ${targetPubkey.substring(0, 8)}...`);
+  console.log(`📋 Using 'since' timestamp: ${since} (${new Date(since * 1000).toISOString()})`);
+
+  // Query for kind 30311 livestreams with timeout
+  const signal = AbortSignal.timeout(60000); // 60 second timeout
   const events = await pool.query([
     {
       kinds: [30311],
@@ -96,9 +100,9 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
       since,
       limit: 100,
     }
-  ]);
+  ], { signal });
 
-  console.log(`✅ Found ${events.length} livestream(s)`);
+  console.log(`✅ Found ${events.length} livestream(s) from relays`);
 
   return events;
 }
@@ -123,6 +127,8 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
     throw error;
   }
 
+  console.log(`📡 Querying relays for kind 30054 episodes from pubkey: ${targetPubkey.substring(0, 8)}...`);
+
   // Create NPool for querying relays
   const pool = new NPool({
     open: (url) => new NRelay1(url),
@@ -135,16 +141,17 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
     ]),
   });
 
-  // Query for kind 30054 episodes
+  // Query for kind 30054 episodes with timeout
+  const signal = AbortSignal.timeout(60000); // 60 second timeout
   const events = await pool.query([
     {
       kinds: [30054],
       authors: [targetPubkey],
       limit: 200, // Get more episodes for duplicate checking
     }
-  ]);
+  ], { signal });
 
-  console.log(`✅ Found ${events.length} existing episode(s)`);
+  console.log(`✅ Found ${events.length} existing episode(s) from relays`);
 
   return events;
 }
@@ -313,6 +320,7 @@ async function main() {
   console.log('📋 Configuration:');
   console.log('  - Batch mode:', config.batchMode);
   console.log('  - Target npub:', config.targetNpub);
+  console.log('  - Relays: wss://relay.primal.net, wss://relay.nostr.band, wss://relay.damus.io, wss://nos.lol, wss://relay.ditto.pub');
 
   try {
     // Load state
