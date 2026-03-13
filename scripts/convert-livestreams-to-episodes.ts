@@ -14,7 +14,7 @@
 
 import { Console } from 'console';
 import type { NostrEvent } from '@nostrify/nostrify';
-import { NPool, NRelay1 } from '@nostrify/nostrify';
+import { NRelay1 } from '@nostrify/nostrify';
 import { nip19 } from 'nostr-tools';
 import type {
   LivestreamConversionConfig,
@@ -272,19 +272,23 @@ async function createSingleEpisode(
 async function publishEpisode(event: NostrEvent): Promise<void> {
   console.log('📡 Publishing episode to Nostr...');
 
-  // Create NPool for querying relays
-  const pool = new NPool({
-    open: (url) => new NRelay1(url),
-    eventRouter: () => {
-      // Route to all relays
-      return ['wss://relay.primal.net', 'wss://relay.nostr.band', 'wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.ditto.pub'];
-    },
+  // List of relays to publish to
+  const relays = ['wss://relay.primal.net', 'wss://relay.nostr.band', 'wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.ditto.pub'];
+
+  // Publish to each relay
+  const promises = relays.map(async (relayUrl) => {
+    try {
+      const relay = new NRelay1(relayUrl);
+      await relay.event(event);
+      console.log(`✅ Published to ${relayUrl}`);
+    } catch (error) {
+      console.warn(`⚠️  Failed to publish to ${relayUrl}:`, error);
+    }
   });
 
-  // Publish to relays
-  await pool.publish(event);
+  await Promise.allSettled(promises);
 
-  console.log(`✅ Episode published successfully`);
+  console.log(`✅ Episode publish process completed`);
 }
 
 /**
