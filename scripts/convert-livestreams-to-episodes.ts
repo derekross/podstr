@@ -30,6 +30,7 @@ import {
   uploadCombinedAudio,
   createSigner,
 } from './lib/conversion-utils';
+import { queryRelay } from './lib/relay-query';
 
 // Custom console for consistent logging
 const console = new Console({
@@ -59,13 +60,13 @@ function parseArgs(): Partial<LivestreamConversionConfig> {
 /**
  * Fetch livestreams from Nostr
  */
-async function fetchLivestreams(targetNpub: string, since: number): Promise<NostrEvent[]> {
+async function fetchLivestreams(_targetNpub: string, _since: number): Promise<NostrEvent[]> {
   console.log('🔍 Fetching livestreams from Nostr...');
 
   // Decode npub to hex
   let targetPubkey: string;
   try {
-    const decoded = nip19.decode(targetNpub);
+    const decoded = nip19.decode(_targetNpub);
     if (decoded.type === 'npub') {
       targetPubkey = decoded.data;
     } else {
@@ -76,74 +77,42 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
     throw error;
   }
 
-  // Create NPool for querying relays
-  const relays = [
-    'wss://nos.lol',
-  ];
+  // Query nos.lol directly using WebSocket (NPool.query() has issues)
+  const relayUrl = 'wss://nos.lol';
+  console.log(`📡 Querying relay: ${relayUrl}`);
+  console.log(`📋 Pubkey: ${targetPubkey.substring(0, 8)}...`);
+  console.log(`📋 Limit: 20`);
+  console.log('');
 
-  console.log(`📡 Attempting to connect to relays:`);
-  relays.forEach((relay, i) => console.log(`   ${i + 1}. ${relay}`));
-
-  let connectionCount = 0;
-  const pool = new NPool({
-    open: (url) => {
-      connectionCount++;
-      console.log(`🔗 Connecting to relay (${connectionCount}/${relays.length}): ${url}`);
-      return new NRelay1(url);
-    },
-    reqRouter: (filters) => new Map(
-      relays.map(relay => [relay, filters])
-    ),
-  });
-
-  console.log(`📡 Querying relays for kind 30311 livestreams from pubkey: ${targetPubkey.substring(0, 8)}...`);
-  console.log(`📋 Using 'since' timestamp: ${since} (${new Date(since * 1000).toISOString()})`);
-  console.log(`💡 Skipping 'since' parameter to get ALL events (may take longer)...`);
-
-  // Query for kind 30311 livestreams with timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => {
-    console.warn('⏰ Query timeout reached (30s), aborting...');
-    controller.abort();
-  }, 30000); // 30 second timeout (reduced from 60s)
-
-  console.log('⏳ Waiting for relay responses...');
+  const startTime = Date.now();
 
   try {
-    const events = await pool.query([
-      {
-        kinds: [30311],
-        authors: [targetPubkey],
-        // Don't use 'since' parameter to get recent events
-        limit: 20, // Reduced from 100 to 20 for faster queries
-      }
-    ], { signal: controller.signal });
+    const events = await queryRelay(relayUrl, {
+      kinds: [30311],
+      authors: [targetPubkey],
+      limit: 20,
+    });
 
-    clearTimeout(timeoutId);
-    console.log(`✅ Found ${events.length} livestream(s) from relays`);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`✅ Query completed in ${duration}s`);
+    console.log(`📊 Found ${events.length} livestream(s)`);
     return events;
   } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Query timed out after 60 seconds - relays may be unreachable');
-    }
-    console.error('❌ Error querying relays:', error instanceof Error ? error.message : error);
+    console.error('❌ Error querying relay:', error instanceof Error ? error.message : error);
     throw error;
   }
-
-  return events;
 }
 
 /**
  * Fetch existing episodes for duplicate detection
  */
-async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> {
+async function fetchExistingEpisodes(_targetNpub: string): Promise<NostrEvent[]> {
   console.log('🔍 Fetching existing episodes for duplicate detection...');
 
   // Decode npub to hex
   let targetPubkey: string;
   try {
-    const decoded = nip19.decode(targetNpub);
+    const decoded = nip19.decode(_targetNpub);
     if (decoded.type === 'npub') {
       targetPubkey = decoded.data;
     } else {
@@ -154,57 +123,29 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
     throw error;
   }
 
-  console.log(`📡 Querying relays for kind 30054 episodes from pubkey: ${targetPubkey.substring(0, 8)}...`);
+  console.log(`📋 Pubkey: ${targetPubkey.substring(0, 8)}...`);
 
-  // Create NPool for querying relays
-  const relays = [
-    'wss://nos.lol',
-  ];
+  // Query nos.lol directly using WebSocket
+  const relayUrl = 'wss://nos.lol';
+  console.log(`📡 Querying relay: ${relayUrl}`);
 
-  let connectionCount = 0;
-  const pool = new NPool({
-    open: (url) => {
-      connectionCount++;
-      console.log(`🔗 Connecting to relay (${connectionCount}/${relays.length}): ${url}`);
-      return new NRelay1(url);
-    },
-    reqRouter: (filters) => new Map(
-      relays.map(relay => [relay, filters])
-    ),
-  });
-
-  // Query for kind 30054 episodes with timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => {
-    console.warn('⏰ Query timeout reached (30s), aborting...');
-    controller.abort();
-  }, 30000); // 30 second timeout (reduced from 60s)
-
-  console.log('⏳ Waiting for relay responses...');
+  const startTime = Date.now();
 
   try {
-    const events = await pool.query([
-      {
-        kinds: [30054],
-        authors: [targetPubkey],
-        // Don't use 'since' parameter to get recent episodes
-        limit: 200, // Get more episodes for duplicate checking
-      }
-    ], { signal: controller.signal });
+    const events = await queryRelay(relayUrl, {
+      kinds: [30054],
+      authors: [targetPubkey],
+      limit: 200,
+    });
 
-    clearTimeout(timeoutId);
-    console.log(`✅ Found ${events.length} existing episode(s) from relays`);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`✅ Query completed in ${duration}s`);
+    console.log(`📊 Found ${events.length} existing episode(s)`);
     return events;
   } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Query timed out after 30 seconds - relays may be unreachable or slow');
-    }
     console.error('❌ Error querying existing episodes:', error instanceof Error ? error.message : error);
     throw error;
   }
-
-  return events;
 }
 
 /**
