@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { exec } from 'child_process';
 import { NSecSigner } from '@nostrify/nostrify';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
 import { NSyteBunkerSigner } from './nsyte-bunker-minimal';
@@ -78,6 +79,64 @@ export function groupLivestreamsForBatch(livestreams: NostrEvent[]): Record<stri
   });
 
   return byHour;
+}
+
+export async function combineAudioFiles(audioUrls: string[], outputFilename: string): Promise<string> {
+  console.log(`🎵 Combining ${audioUrls.length} audio files...`);
+
+  // Create temp directory
+  const tempDir = path.join(process.cwd(), '.temp-audio');
+  await fs.mkdir(tempDir, { recursive: true });
+
+  // Download audio files
+  const audioFiles: string[] = [];
+  for (let i = 0; i < audioUrls.length; i++) {
+    const url = audioUrls[i];
+    const filename = `audio-${i}.mp3`;
+    const filepath = path.join(tempDir, filename);
+
+    console.log(`📥 Downloading: ${url}`);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to download audio: ${response.statusText} (${response.status})`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      await fs.writeFile(filepath, Buffer.from(buffer));
+      audioFiles.push(filepath);
+      console.log(`✅ Downloaded: ${filepath}`);
+    } catch (error) {
+      console.error(`❌ Failed to download audio from ${url}:`, error);
+      throw error;
+    }
+  }
+
+  // Create input list file for ffmpeg
+  const listFilePath = path.join(tempDir, 'concat-list.txt');
+  const listContent = audioFiles.map(f => `file '${f}'`).join('\n');
+  await fs.writeFile(listFilePath, listContent);
+
+  // Combine audio using ffmpeg
+  const outputPath = path.join(tempDir, outputFilename);
+  const ffmpegCmd = `ffmpeg -f concat -safe 0 -i "${listFilePath}" -c copy "${outputPath}"`;
+
+  console.log(`🎬 Running ffmpeg...`);
+  await new Promise<void>((resolve, reject) => {
+    exec(ffmpegCmd, (error, stdout, stderr) => {
+      if (error) {
+        console.error('❌ FFmpeg error:', stderr);
+        reject(error);
+      } else {
+        console.log('✅ FFmpeg output:', stdout.trim());
+        resolve();
+      }
+    });
+  });
+
+  console.log(`✅ Combined audio saved to: ${outputPath}`);
+
+  return outputPath;
 }
 
 export async function uploadCombinedAudio(filepath: string, privateKey: string, nbunksec?: string): Promise<string> {
