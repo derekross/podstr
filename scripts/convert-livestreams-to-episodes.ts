@@ -270,29 +270,36 @@ async function createSingleEpisode(
  * Publish episode to Nostr
  */
 async function publishEpisode(event: NostrEvent): Promise<void> {
-  console.log('📡 Publishing episode to Nostr...');
+  console.log('📡 Publishing episode to Nostr (nos.lol only)...');
   console.log(`   Event ID: ${event.id.substring(0, 16)}...`);
   console.log(`   Event d-tag: ${event.tags.find(t => t[0] === 'd')?.[1] || 'unknown'}`);
+  console.log(`   Event kind: ${event.kind}`);
+  console.log(`   Event created_at: ${event.created_at}`);
+  console.log(`   Tags: ${JSON.stringify(event.tags).substring(0, 200)}...`);
 
-  // List of relays to publish to
-  const relays = ['wss://relay.primal.net', 'wss://relay.nostr.band', 'wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.ditto.pub'];
+  // Only publish to nos.lol for now (simpler debugging)
+  const relayUrl = 'wss://nos.lol';
 
-  // Publish to each relay
-  const promises = relays.map(async (relayUrl, index) => {
-    try {
-      console.log(`   Connecting to relay ${index + 1}/${relays.length}: ${relayUrl}`);
-      const relay = new NRelay1(relayUrl);
-      await relay.event(event);
-      console.log(`   ✅ Published to ${relayUrl}`);
-    } catch (error) {
-      console.error(`   ❌ Failed to publish to ${relayUrl}:`, error instanceof Error ? error.message : String(error));
+  console.log(`   Connecting to relay: ${relayUrl}`);
+  const startTime = Date.now();
+
+  try {
+    const relay = new NRelay1(relayUrl);
+    console.log(`   Relay created, ready to publish`);
+
+    // Monitor relay state before publishing
+    console.log(`   Relay socket state: ${relay.socket ? 'connected' : 'not connected'}`);
+
+    const signedEvent = await relay.event(event);
+    console.log(`   ✅ Published successfully! Event ID: ${signedEvent.id}`);
+    console.log(`   Publish completed in ${Date.now() - startTime}ms`);
+  } catch (error) {
+    console.error(`   ❌ Failed to publish:`, error instanceof Error ? error.message : String(error));
+    if (error instanceof Error) {
+      console.error(`   Error stack:`, error.stack);
     }
-  });
-
-  console.log(`   Waiting for all publishes to complete...`);
-  await Promise.allSettled(promises);
-
-  console.log(`✅ Episode publish process completed`);
+    throw error;
+  }
 }
 
 /**
