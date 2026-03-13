@@ -282,6 +282,7 @@ async function publishEpisode(event: NostrEvent): Promise<void> {
 
   console.log(`   Connecting to relay: ${relayUrl}`);
   const startTime = Date.now();
+  const TIMEOUT_MS = 30_000; // 30 second timeout for publish
 
   try {
     const relay = new NRelay1(relayUrl);
@@ -290,7 +291,19 @@ async function publishEpisode(event: NostrEvent): Promise<void> {
     // Monitor relay state before publishing
     console.log(`   Relay socket state: ${relay.socket ? 'connected' : 'not connected'}`);
 
-    const signedEvent = await relay.event(event);
+    // Create timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Publish timeout after ${TIMEOUT_MS}ms`));
+      }, TIMEOUT_MS);
+    });
+
+    // Race between publish and timeout
+    const signedEvent = await Promise.race([
+      relay.event(event),
+      timeoutPromise
+    ]);
+
     console.log(`   ✅ Published successfully! Event ID: ${signedEvent.id}`);
     console.log(`   Publish completed in ${Date.now() - startTime}ms`);
   } catch (error) {
