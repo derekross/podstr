@@ -102,9 +102,9 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
   // Query for kind 30311 livestreams with timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    console.warn('⏰ Query timeout reached (60s), aborting...');
+    console.warn('⏰ Query timeout reached (30s), aborting...');
     controller.abort();
-  }, 60000);
+  }, 30000); // 30 second timeout (reduced from 60s)
 
   console.log('⏳ Waiting for relay responses...');
 
@@ -114,7 +114,7 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
         kinds: [30311],
         authors: [targetPubkey],
         since,
-        limit: 100,
+        limit: 20, // Reduced from 100 to 20 for faster queries
       }
     ], { signal: controller.signal });
 
@@ -175,9 +175,9 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
   // Query for kind 30054 episodes with timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    console.warn('⏰ Query timeout reached (60s), aborting...');
+    console.warn('⏰ Query timeout reached (30s), aborting...');
     controller.abort();
-  }, 60000);
+  }, 30000); // 30 second timeout (reduced from 60s)
 
   console.log('⏳ Waiting for relay responses...');
 
@@ -196,9 +196,9 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
   } catch (error) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Query timed out after 60 seconds - relays may be unreachable');
+      throw new Error('Query timed out after 30 seconds - relays may be unreachable or slow');
     }
-    console.error('❌ Error querying relays:', error instanceof Error ? error.message : error);
+    console.error('❌ Error querying existing episodes:', error instanceof Error ? error.message : error);
     throw error;
   }
 
