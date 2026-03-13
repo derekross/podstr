@@ -302,11 +302,17 @@ async function publishEpisode(event: NostrEvent): Promise<void> {
       }, TIMEOUT_MS);
     });
 
-    // Race between publish and timeout
-    const signedEvent = await Promise.race([
-      relay.event(event),
+    console.log('   Waiting for event() promise or timeout...');
+    const result = await Promise.race([
+      eventPromise,
       timeoutPromise
     ]);
+
+    const signedEvent = result;
+    console.log(`   ✅ Published successfully! Event ID: ${signedEvent.id}`);
+    console.log(`   Published event has ${signedEvent.tags.length} tags`);
+    console.log(`   Publish completed in ${Date.now() - startTime}ms`);
+
 
     console.log(`   ✅ Published successfully! Event ID: ${signedEvent.id}`);
     console.log(`   Publish completed in ${Date.now() - startTime}ms`);
