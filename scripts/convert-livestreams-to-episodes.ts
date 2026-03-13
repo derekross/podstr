@@ -271,21 +271,25 @@ async function createSingleEpisode(
  */
 async function publishEpisode(event: NostrEvent): Promise<void> {
   console.log('📡 Publishing episode to Nostr...');
+  console.log(`   Event ID: ${event.id.substring(0, 16)}...`);
+  console.log(`   Event d-tag: ${event.tags.find(t => t[0] === 'd')?.[1] || 'unknown'}`);
 
   // List of relays to publish to
   const relays = ['wss://relay.primal.net', 'wss://relay.nostr.band', 'wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.ditto.pub'];
 
   // Publish to each relay
-  const promises = relays.map(async (relayUrl) => {
+  const promises = relays.map(async (relayUrl, index) => {
     try {
+      console.log(`   Connecting to relay ${index + 1}/${relays.length}: ${relayUrl}`);
       const relay = new NRelay1(relayUrl);
       await relay.event(event);
-      console.log(`✅ Published to ${relayUrl}`);
+      console.log(`   ✅ Published to ${relayUrl}`);
     } catch (error) {
-      console.warn(`⚠️  Failed to publish to ${relayUrl}:`, error);
+      console.error(`   ❌ Failed to publish to ${relayUrl}:`, error instanceof Error ? error.message : String(error));
     }
   });
 
+  console.log(`   Waiting for all publishes to complete...`);
   await Promise.allSettled(promises);
 
   console.log(`✅ Episode publish process completed`);
