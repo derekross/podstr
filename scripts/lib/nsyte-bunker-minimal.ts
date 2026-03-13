@@ -19,7 +19,8 @@ export class NSyteBunkerSigner implements NostrSigner {
   constructor(bunkerUrl: string, nbunksec: string) {
     // Parse bunker URL to extract relay
     // Format: bunker://<signer-pubkey>?relay=<relay>
-    const urlMatch = bunkerUrl.match(/bunker:\/\/([a-f0-9]+)\?relay=([^&]+)/);
+    // Supports both hex and bech32 (npub/nprofile) formats
+    const urlMatch = bunkerUrl.match(/bunker:\/\/([^?]+)\?relay=([^&]+)/);
     if (!urlMatch) {
       throw new Error('Invalid bunker URL format. Expected: bunker://<pubkey>?relay=<relay>');
     }
