@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { exec } from 'child_process';
+import { nip19 } from 'nostr-tools';
 import { NSecSigner } from '@nostrify/nostrify';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
 import { NSyteBunkerSigner } from './nsyte-bunker-minimal';
@@ -198,6 +199,23 @@ export function createSigner(privateKey: string | undefined, nbunksec?: string) 
   if (!privateKey) {
     throw new Error('Private key is required when not using nbunksec');
   }
+
+  // Convert nsec (bech32) to hex if needed
+  let hexPrivateKey = privateKey;
+  if (privateKey.startsWith('nsec1')) {
+    try {
+      const decoded = nip19.decode(privateKey);
+      if (decoded.type === 'nsec') {
+        hexPrivateKey = decoded.data as string;
+        console.log('🔑 Converted nsec to hex format');
+      } else {
+        throw new Error('Invalid nsec format');
+      }
+    } catch (error) {
+      console.warn('⚠️  Failed to decode nsec, assuming hex format:', error);
+    }
+  }
+
   console.log('🔐 Using local NSecSigner');
-  return new NSecSigner(privateKey);
+  return new NSecSigner(hexPrivateKey);
 }
