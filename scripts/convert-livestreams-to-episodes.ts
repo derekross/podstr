@@ -77,15 +77,25 @@ async function fetchLivestreams(targetNpub: string, since: number): Promise<Nost
   }
 
   // Create NPool for querying relays
+  const relays = [
+    'wss://relay.primal.net',
+    'wss://relay.nostr.band',
+    'wss://relay.damus.io',
+    'wss://nos.lol',
+    'wss://relay.ditto.pub',
+  ];
+
+  console.log(`📡 Attempting to connect to relays:`);
+  relays.forEach((relay, i) => console.log(`   ${i + 1}. ${relay}`));
+
   const pool = new NPool({
-    open: (url) => new NRelay1(url),
-    reqRouter: (filters) => new Map([
-      ['wss://relay.primal.net', filters],
-      ['wss://relay.nostr.band', filters],
-      ['wss://relay.damus.io', filters],
-      ['wss://nos.lol', filters],
-      ['wss://relay.ditto.pub', filters],
-    ]),
+    open: (url) => {
+      console.log(`🔗 Connecting to relay: ${url}`);
+      return new NRelay1(url);
+    },
+    reqRouter: (filters) => new Map(
+      relays.map(relay => [relay, filters])
+    ),
   });
 
   console.log(`📡 Querying relays for kind 30311 livestreams from pubkey: ${targetPubkey.substring(0, 8)}...`);
@@ -146,15 +156,22 @@ async function fetchExistingEpisodes(targetNpub: string): Promise<NostrEvent[]> 
   console.log(`📡 Querying relays for kind 30054 episodes from pubkey: ${targetPubkey.substring(0, 8)}...`);
 
   // Create NPool for querying relays
+  const relays = [
+    'wss://relay.primal.net',
+    'wss://relay.nostr.band',
+    'wss://relay.damus.io',
+    'wss://nos.lol',
+    'wss://relay.ditto.pub',
+  ];
+
   const pool = new NPool({
-    open: (url) => new NRelay1(url),
-    reqRouter: (filters) => new Map([
-      ['wss://relay.primal.net', filters],
-      ['wss://relay.nostr.band', filters],
-      ['wss://relay.damus.io', filters],
-      ['wss://nos.lol', filters],
-      ['wss://relay.ditto.pub', filters],
-    ]),
+    open: (url) => {
+      console.log(`🔗 Connecting to relay: ${url}`);
+      return new NRelay1(url);
+    },
+    reqRouter: (filters) => new Map(
+      relays.map(relay => [relay, filters])
+    ),
   });
 
   // Query for kind 30054 episodes with timeout
