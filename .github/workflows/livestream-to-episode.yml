@@ -40,9 +40,12 @@ jobs:
         run: npm ci
 
       - name: Install ffmpeg
+        if: env.BATCH_MODE == 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+        env:
+          BATCH_MODE: ${{ github.event.inputs.batch_mode == 'true' || 'false' }}
 
       - name: Convert livestreams to episodes
         env:
