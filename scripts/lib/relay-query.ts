@@ -7,7 +7,7 @@ import { WebSocket } from 'ws';
  */
 export async function queryRelay(
   relayUrl: string,
-  filter: { ids?: string[]; kinds?: number[]; authors?: string[]; limit?: number; '#d'?: string[] }
+  filter: { ids?: string[]; kinds?: number[]; authors?: string[]; limit?: number; '#d'?: string[]; '#p'?: string[] }
 ): Promise<NostrEvent[]> {
   return new Promise((resolve, reject) => {
     const subscriptionId = `query-${Date.now()}-${Math.random().toString(36).substring(7)}`;

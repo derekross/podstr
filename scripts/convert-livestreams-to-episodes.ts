@@ -80,7 +80,7 @@ async function fetchLivestreams(_targetNpub: string, _since: number): Promise<No
   // Query nos.lol directly using WebSocket (NPool.query() has issues)
   const relayUrl = 'wss://nos.lol';
   console.log(`📡 Querying relay: ${relayUrl}`);
-  console.log(`📋 Pubkey: ${targetPubkey.substring(0, 8)}...`);
+  console.log(`📋 Host pubkey (p tag): ${targetPubkey.substring(0, 8)}...`);
   console.log(`📋 Limit: 20`);
   console.log('');
 
@@ -89,7 +89,7 @@ async function fetchLivestreams(_targetNpub: string, _since: number): Promise<No
   try {
     const events = await queryRelay(relayUrl, {
       kinds: [30311],
-      authors: [targetPubkey],
+      '#p': [targetPubkey], // Filter by host p tag instead of authors
       limit: 20,
     });
 
@@ -123,7 +123,7 @@ async function fetchExistingEpisodes(_targetNpub: string): Promise<NostrEvent[]>
     throw error;
   }
 
-  console.log(`📋 Pubkey: ${targetPubkey.substring(0, 8)}...`);
+  console.log(`📋 Host pubkey (p tag): ${targetPubkey.substring(0, 8)}...`);
 
   // Query nos.lol directly using WebSocket
   const relayUrl = 'wss://nos.lol';
@@ -134,7 +134,7 @@ async function fetchExistingEpisodes(_targetNpub: string): Promise<NostrEvent[]>
   try {
     const events = await queryRelay(relayUrl, {
       kinds: [30054],
-      authors: [targetPubkey],
+      '#p': [targetPubkey], // Filter by host p tag for consistency
       limit: 200,
     });
 
