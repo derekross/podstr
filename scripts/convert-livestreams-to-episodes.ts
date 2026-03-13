@@ -474,7 +474,7 @@ async function main() {
 
       // Process each group
       for (const group of groups) {
-        const groupEventIds = group.map(g => g.id.substring(0, 8)).join(', ');
+        const groupEventIds = group.map(g => g.id).join(', ');
         console.log(`\\n📦 Processing batch group of ${group.length} event(s): ${groupEventIds}`);
 
         try {
@@ -547,15 +547,19 @@ async function main() {
           state.lastProcessedTimestamp = now;
         }
         catch (error) {
-          console.error(`❌ Failed to process group (event IDs: ${groupEventIds}):`, error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`❌ Failed to process group (event IDs: ${groupEventIds}): ${errorMessage}`);
+          if (error instanceof Error && error.stack) {
+            console.error(`   Error stack:`, error.stack);
+          }
           failedCount.value += group.length;
           group.forEach(stream => {
             summaries.push({
               livestreamAddress: `${stream.pubkey}:${stream.tags.find(t => t[0] === 'd')?.[1]}`,
                 title: stream.tags.find(([name]) => name === 'title')?.[1] || 'Untitled',
                 status: 'failed',
-                reason: error instanceof Error ? error.message : 'Unknown error',
-              });
+                reason: errorMessage,
+            });
             });
       }
     }
@@ -623,13 +627,17 @@ async function main() {
           state.lastProcessedTimestamp = Math.floor(Date.now() / 1000);
         }
         catch (error) {
-          console.error(`❌ Failed to process livestream (event ID: ${eventId}):`, error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`❌ Failed to process livestream (event ID: ${eventId}): ${errorMessage}`);
+          if (error instanceof Error && error.stack) {
+            console.error(`   Error stack:`, error.stack);
+          }
           failedCount.value++;
           summaries.push({
             livestreamAddress: `${livestream.pubkey}:${livestream.tags.find(t => t[0] === 'd')?.[1]}`,
               title: livestream.tags.find(([name]) => name === 'title')?.[1] || 'Untitled',
               status: 'failed',
-              reason: error instanceof Error ? error.message : 'Unknown error',
+              reason: errorMessage,
             });
           }
         }
