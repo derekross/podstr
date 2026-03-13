@@ -283,33 +283,64 @@ async function publishEpisode(event: NostrEvent): Promise<void> {
 
   // Only publish to nos.lol for now (simpler debugging)
   const relayUrl = 'wss://nos.lol';
+  const TIMEOUT_MS = 30_000;
 
   console.log(`   Connecting to relay: ${relayUrl}`);
   const startTime = Date.now();
 
   try {
-    const relay = new NRelay1(relayUrl);
-    console.log(`   Relay created, about to call event()`);
+    // Wrap entire publish operation in a timeout
+    const publishPromise = new Promise<void>(async (resolve, reject) => {
+      try {
+        const relay = new NRelay1(relayUrl);
+        console.log(`   Relay created, about to call event()`);
 
-    // Create timeout promise
-    const TIMEOUT_MS = 30_000;
-    const timeoutPromise = new Promise<never>((_, reject) => {
+        // Wait for relay to be ready
+        await new Promise<void>((resolveReady, rejectReady) => {
+          const timeout = setTimeout(() => {
+            rejectReady(new Error('Relay connection timeout'));
+          }, 10000); // 10 second connection timeout
+
+          // Check if relay is ready (socket connected)
+          const checkReady = setInterval(() => {
+            const socket = (relay as any).socket;
+            if (socket && socket.readyState === 1) { // WebSocket.OPEN
+              clearInterval(checkReady);
+              clearTimeout(timeout);
+              console.log(`   Relay socket is ready`);
+              resolveReady();
+            }
+          }, 100);
+
+          // Fallback: try to publish after 2 seconds regardless of socket state
+          setTimeout(() => {
+            clearInterval(checkReady);
+            clearTimeout(timeout);
+            console.log(`   Proceeding with publish (timeout waiting for ready state)`);
+            resolveReady();
+          }, 2000);
+        });
+
+        console.log(`   Calling relay.event()...`);
+        const signedEvent = await relay.event(event);
+        console.log(`   ✅ Published successfully! Event ID: ${signedEvent.id}`);
+        console.log(`   Published event has ${signedEvent.tags.length} tags`);
+        console.log(`   Publish completed in ${Date.now() - startTime}ms`);
+        resolve();
+      } catch (err) {
+        reject(err);
+      }
+    });
+
+    // Add overall timeout
+    const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
         reject(new Error(`Publish timeout after ${TIMEOUT_MS}ms`));
       }, TIMEOUT_MS);
     });
 
-    const eventPromise = relay.event(event);
-
-    console.log('   Waiting for event() promise or timeout...');
-    const signedEvent = await Promise.race([
-      eventPromise,
-      timeoutPromise
-    ]);
-
-    console.log(`   ✅ Published successfully! Event ID: ${signedEvent.id}`);
-    console.log(`   Published event has ${signedEvent.tags.length} tags`);
-    console.log(`   Publish completed in ${Date.now() - startTime}ms`);
+    console.log(`   Starting publish operation with ${TIMEOUT_MS}ms timeout...`);
+    await Promise.race([publishPromise, timeoutPromise]);
   } catch (error) {
     console.error(`   ❌ Failed to publish:`, error instanceof Error ? error.message : String(error));
     if (error instanceof Error) {
