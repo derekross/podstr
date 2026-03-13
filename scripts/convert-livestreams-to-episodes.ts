@@ -267,7 +267,7 @@ async function createSingleEpisode(
 }
 
 /**
- * Publish episode to Nostr
+ * Publish episode to Nostr using direct WebSocket with explicit timeout
  */
 async function publishEpisode(event: NostrEvent): Promise<void> {
   console.log('📡 Publishing episode to Nostr (nos.lol only)...');
@@ -279,75 +279,99 @@ async function publishEpisode(event: NostrEvent): Promise<void> {
   console.log(`   Event pubkey: ${event.pubkey}`);
   console.log(`   Event created_at: ${event.created_at}`);
   console.log(`   Number of tags: ${event.tags.length}`);
-  console.log(`   About to call relay.event()...`);
 
-  // Only publish to nos.lol for now (simpler debugging)
   const relayUrl = 'wss://nos.lol';
   const TIMEOUT_MS = 30_000;
-
-  console.log(`   Connecting to relay: ${relayUrl}`);
   const startTime = Date.now();
 
-  try {
-    // Wrap entire publish operation in a timeout
-    const publishPromise = new Promise<void>(async (resolve, reject) => {
-      try {
-        const relay = new NRelay1(relayUrl);
-        console.log(`   Relay created, about to call event()`);
+  return new Promise<void>((resolve, reject) => {
+    console.log(`   Connecting to ${relayUrl} with ${TIMEOUT_MS}ms timeout...`);
 
-        // Wait for relay to be ready
-        await new Promise<void>((resolveReady, rejectReady) => {
-          const timeout = setTimeout(() => {
-            rejectReady(new Error('Relay connection timeout'));
-          }, 10000); // 10 second connection timeout
+    let ws: WebSocket | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
 
-          // Check if relay is ready (socket connected)
-          const checkReady = setInterval(() => {
-            const socket = (relay as any).socket;
-            if (socket && socket.readyState === 1) { // WebSocket.OPEN
-              clearInterval(checkReady);
-              clearTimeout(timeout);
-              console.log(`   Relay socket is ready`);
-              resolveReady();
-            }
-          }, 100);
-
-          // Fallback: try to publish after 2 seconds regardless of socket state
-          setTimeout(() => {
-            clearInterval(checkReady);
-            clearTimeout(timeout);
-            console.log(`   Proceeding with publish (timeout waiting for ready state)`);
-            resolveReady();
-          }, 2000);
-        });
-
-        console.log(`   Calling relay.event()...`);
-        const signedEvent = await relay.event(event);
-        console.log(`   ✅ Published successfully! Event ID: ${signedEvent.id}`);
-        console.log(`   Published event has ${signedEvent.tags.length} tags`);
-        console.log(`   Publish completed in ${Date.now() - startTime}ms`);
-        resolve();
-      } catch (err) {
-        reject(err);
+    // Set timeout
+    timeoutId = setTimeout(() => {
+      console.error(`   ❌ Timeout after ${TIMEOUT_MS}ms`);
+      if (ws) {
+        ws.close();
       }
-    });
+      reject(new Error(`Publish timeout after ${TIMEOUT_MS}ms`));
+    }, TIMEOUT_MS);
 
-    // Add overall timeout
-    const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Publish timeout after ${TIMEOUT_MS}ms`));
-      }, TIMEOUT_MS);
-    });
+    try {
+      const WebSocket = require('ws');
+      ws = new WebSocket(relayUrl);
 
-    console.log(`   Starting publish operation with ${TIMEOUT_MS}ms timeout...`);
-    await Promise.race([publishPromise, timeoutPromise]);
-  } catch (error) {
-    console.error(`   ❌ Failed to publish:`, error instanceof Error ? error.message : String(error));
-    if (error instanceof Error) {
-      console.error(`   Error stack:`, error.stack);
+      ws.on('open', () => {
+        console.log(`   WebSocket connected, sending EVENT message...`);
+
+        // Send the event
+        const eventMsg = JSON.stringify(['EVENT', event]);
+        ws.send(eventMsg);
+
+        console.log(`   EVENT message sent, waiting for OK response...`);
+      });
+
+      ws.on('message', (data: Buffer) => {
+        const message = JSON.parse(data.toString());
+        console.log(`   Received message:`, message);
+
+        if (message[0] === 'OK') {
+          const eventId = message[1];
+          const success = message[2];
+          const msg = message[3];
+
+          if (success) {
+            console.log(`   ✅ Event accepted by relay! Event ID: ${eventId}`);
+            console.log(`   Publish completed in ${Date.now() - startTime}ms`);
+
+            // Clear timeout and close connection
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            if (ws) {
+              ws.close();
+            }
+            resolve();
+          } else {
+            console.error(`   ❌ Event rejected by relay: ${msg}`);
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
+            if (ws) {
+              ws.close();
+            }
+            reject(new Error(`Event rejected by relay: ${msg}`));
+          }
+        }
+      });
+
+      ws.on('error', (error: Error) => {
+        console.error(`   ❌ WebSocket error:`, error.message);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        if (ws) {
+          ws.close();
+        }
+        reject(error);
+      });
+
+      ws.on('close', () => {
+        console.log(`   WebSocket connection closed`);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      });
+    } catch (error) {
+      console.error(`   ❌ Failed to create WebSocket:`, error);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      reject(error);
     }
-    throw error;
-  }
+  });
 }
 
 /**
