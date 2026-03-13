@@ -13,30 +13,29 @@ export class NSyteBunkerSigner implements NostrSigner {
 
   /**
    * Create bunker signer
-   * @param bunkerUrl - bunker://<pubkey>?relay=<relay> format
+   * @param bunkerUrl - bunker://<pubkey>?relay=<relay> format (or full nbunksec string)
    * @param nbunksec - nbunksec format with secret for authentication
    */
   constructor(bunkerUrl: string, nbunksec: string) {
-    // Parse bunker URL to extract relay
-    // Format: bunker://<signer-pubkey>?relay=<relay>
-    // Supports both hex and bech32 (npub/nprofile) formats
-    const urlMatch = bunkerUrl.match(/bunker:\/\/([^?]+)\?relay=([^&]+)/);
+    // Use nbunksec directly as it contains both the bunker URL and secret
+    // Format: bunker://<pubkey>?relay=<relay>&secret=<secret>
+    // or bunker://<pubkey>?relay=<relay>
+    const urlMatch = nbunksec.match(/bunker:\/\/([^?]+)\?relay=([^&]+)/);
     if (!urlMatch) {
+      console.log(`🔍 Debug: nbunksec value (first 50 chars): ${nbunksec.substring(0, 50)}...`);
       throw new Error('Invalid bunker URL format. Expected: bunker://<pubkey>?relay=<relay>');
     }
 
     const relay = urlMatch[2];
 
-    // Extract secret from nbunksec
-    // Format: nbunksec1<bech32>?secret=<secret>
+    // Extract secret from nbunksec if present
+    // Format: bunker://<pubkey>?relay=<relay>&secret=<secret>
     const secretMatch = nbunksec.match(/secret=([a-zA-Z0-9_-]+)/);
     const secret = secretMatch ? secretMatch[1] : '';
 
     // Build connection string with secret
     // Format: bunker://<signer-pubkey>?relay=<relay>&secret=<secret>
-    const connectionString = secret
-      ? `${bunkerUrl}&secret=${secret}`
-      : bunkerUrl;
+    const connectionString = nbunksec;
 
     // Create client
     this.client = new SimpleNIP46Client([relay], {
