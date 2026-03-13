@@ -300,8 +300,8 @@ async function main() {
   };
 
   // Validate configuration
-  if (!config.nostrPrivateKey) {
-    console.error('❌ NOSTR_PRIVATE_KEY environment variable is required');
+  if (!config.nbunksec && !config.nostrPrivateKey) {
+    console.error('❌ Either NBUNKSEC or NOSTR_PRIVATE_KEY environment variable is required');
     process.exit(1);
   }
 

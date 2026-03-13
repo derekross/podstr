@@ -139,7 +139,7 @@ export async function combineAudioFiles(audioUrls: string[], outputFilename: str
   return outputPath;
 }
 
-export async function uploadCombinedAudio(filepath: string, privateKey: string, nbunksec?: string): Promise<string> {
+export async function uploadCombinedAudio(filepath: string, privateKey: string | undefined, nbunksec?: string): Promise<string> {
   console.log('☁️  Uploading combined audio to Blossom...');
 
   // Read file
@@ -153,8 +153,11 @@ export async function uploadCombinedAudio(filepath: string, privateKey: string, 
   if (nbunksec) {
     console.log('🔐 Using nsyte bunker for remote signing');
     const [bunkerUrl, _rest] = nbunksec.split('?');
-    signer = new NSyteBunkerSigner(bunkerUrl, privateKey);
+    signer = new NSyteBunkerSigner(bunkerUrl, nbunksec);
   } else {
+    if (!privateKey) {
+      throw new Error('Private key is required when not using nbunksec');
+    }
     console.log('🔐 Using local NSecSigner');
     signer = new NSecSigner(privateKey);
   }
@@ -186,11 +189,14 @@ export async function uploadCombinedAudio(filepath: string, privateKey: string, 
   }
 }
 
-export function createSigner(privateKey: string, nbunksec?: string) {
+export function createSigner(privateKey: string | undefined, nbunksec?: string) {
   if (nbunksec) {
     console.log('🔐 Using nsyte bunker for remote signing');
     const [bunkerUrl, _rest] = nbunksec.split('?');
-    return new NSyteBunkerSigner(bunkerUrl, privateKey);
+    return new NSyteBunkerSigner(bunkerUrl, nbunksec);
+  }
+  if (!privateKey) {
+    throw new Error('Private key is required when not using nbunksec');
   }
   console.log('🔐 Using local NSecSigner');
   return new NSecSigner(privateKey);
