@@ -21,6 +21,7 @@ export interface PodcastEpisode {
   tags: string[];
   // Transcript and chapters as URL references
   transcriptUrl?: string;
+  transcriptType?: string; // MIME type (e.g. 'application/x-subrip', 'text/vtt')
   chaptersUrl?: string;
   guests?: PodcastGuest[];
   externalRefs?: ExternalReference[];
@@ -187,6 +188,7 @@ export interface RSSItem {
   image?: string;
   // Transcript and chapters as URL references
   transcriptUrl?: string;
+  transcriptType?: string; // MIME type (e.g. 'application/x-subrip', 'text/vtt')
   chaptersUrl?: string;
   funding?: Array<{
     url: string;

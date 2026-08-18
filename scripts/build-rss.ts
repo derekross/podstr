@@ -143,7 +143,7 @@ function generateRSSFeed(episodes: PodcastEpisode[], trailers: PodcastTrailer[],
       <itunes:duration>${episode.duration ? formatDurationForRSS(episode.duration) : '00:00'}</itunes:duration>
       <itunes:explicit>${episode.explicit ? 'yes' : 'no'}</itunes:explicit>
       ${episode.imageUrl ? `<itunes:image href="${escapeXml(episode.imageUrl)}" />` : ''}
-      ${transcriptUrl ? `<podcast:transcript url="${escapeXml(transcriptUrl)}" type="text/plain" />` : ''}
+      ${transcriptUrl ? `<podcast:transcript url="${escapeXml(transcriptUrl)}" type="${escapeXml(episode.transcriptType || 'text/plain')}" />` : ''}
       ${chaptersUrl ? `<podcast:chapters url="${escapeXml(chaptersUrl)}" type="application/json+chapters" />` : ''}
       ${episode.content ? `<content:encoded><![CDATA[${episode.content}]]></content:encoded>` : ''}
       ${episode.value && episode.value.enabled && episode.value.recipients && episode.value.recipients.length > 0 ?
@@ -219,8 +219,9 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
     publishDate = new Date(event.created_at * 1000);
   }
 
-  // Extract transcript URL from tag
+  // Extract transcript URL and optional MIME type from tag
   const transcriptUrl = tags.get('transcript')?.[0];
+  const transcriptType = tags.get('transcript')?.[1] || 'text/plain';
 
   // Extract chapters URL from tag
   const chaptersUrl = tags.get('chapters')?.[0];
@@ -257,6 +258,7 @@ function eventToPodcastEpisode(event: NostrEvent): PodcastEpisode {
     videoType,
     imageUrl,
     transcriptUrl,
+    transcriptType,
     chaptersUrl,
     duration,
     episodeNumber,

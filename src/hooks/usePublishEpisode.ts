@@ -8,6 +8,19 @@ import { PODCAST_KINDS, isPodcastCreator } from '@/lib/podcastConfig';
 import { usePodcastConfig } from '@/hooks/usePodcastConfig';
 import { addOP3Prefix } from '@/lib/op3Utils';
 
+/** Infer transcript MIME type from file extension (File.type is unreliable for .srt) */
+function inferTranscriptMime(filename: string, fileType: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const mimeMap: Record<string, string> = {
+    srt: 'application/x-subrip',
+    vtt: 'text/vtt',
+    json: 'application/json',
+    html: 'text/html',
+    txt: 'text/plain',
+  };
+  return mimeMap[ext ?? ''] || fileType || 'text/plain';
+}
+
 /**
  * Hook for publishing podcast episodes (creator only)
  */
@@ -94,10 +107,12 @@ export function usePublishEpisode() {
 
       // Upload transcript file if provided
       let transcriptUrl = episodeData.transcriptUrl;
+      let transcriptType = episodeData.transcriptType;
       if (episodeData.transcriptFile) {
         try {
           const transcriptTags = await uploadFile(episodeData.transcriptFile);
           transcriptUrl = transcriptTags[0][1];
+          transcriptType = inferTranscriptMime(episodeData.transcriptFile.name, episodeData.transcriptFile.type);
         } catch (error) {
           throw new Error(`Failed to upload transcript file: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -172,9 +187,11 @@ export function usePublishEpisode() {
         tags.push(['season', episodeData.seasonNumber.toString()]);
       }
 
-      // Add transcript URL if provided
+      // Add transcript URL and MIME type if provided
       if (transcriptUrl) {
-        tags.push(['transcript', transcriptUrl]);
+        transcriptType
+          ? tags.push(['transcript', transcriptUrl, transcriptType])
+          : tags.push(['transcript', transcriptUrl]);
       }
 
       // Add chapters URL if provided
@@ -309,10 +326,12 @@ export function useUpdateEpisode() {
 
       // Upload transcript file if provided
       let transcriptUrl = episodeData.transcriptUrl;
+      let transcriptType = episodeData.transcriptType;
       if (episodeData.transcriptFile) {
         try {
           const transcriptTags = await uploadFile(episodeData.transcriptFile);
           transcriptUrl = transcriptTags[0][1];
+          transcriptType = inferTranscriptMime(episodeData.transcriptFile.name, episodeData.transcriptFile.type);
         } catch (error) {
           throw new Error(`Failed to upload transcript file: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -415,9 +434,11 @@ export function useUpdateEpisode() {
         tags.push(['season', episodeData.seasonNumber.toString()]);
       }
 
-      // Add transcript URL if provided
+      // Add transcript URL and MIME type if provided
       if (transcriptUrl) {
-        tags.push(['transcript', transcriptUrl]);
+        transcriptType
+          ? tags.push(['transcript', transcriptUrl, transcriptType])
+          : tags.push(['transcript', transcriptUrl]);
       }
 
       // Add chapters URL if provided
