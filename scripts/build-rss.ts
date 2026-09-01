@@ -657,6 +657,20 @@ async function buildRSS() {
     console.log('📡 Feed will be available at: /rss.xml');
     console.log('🏥 Health check available at: /rss-health');
 
+    // Notify Podcast Index that the feed has been updated
+    const feedUrl = `${baseUrl}/rss.xml`;
+    try {
+      const piUrl = `https://api.podcastindex.org/api/1.0/hub/pubnotify?url=${encodeURIComponent(feedUrl)}&pretty`;
+      const piResponse = await fetch(piUrl);
+      if (piResponse.ok) {
+        console.log(`📡 Notified Podcast Index of feed update`);
+      } else {
+        console.warn(`⚠️ Podcast Index notification returned status ${piResponse.status}`);
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to notify Podcast Index:', (error as Error).message);
+    }
+
     process.exit(0);
   } catch (error) {
     console.error('❌ Error generating RSS feed:', error);
